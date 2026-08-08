@@ -1,0 +1,24 @@
+<link rel="stylesheet" href="panel.css" />
+
+<div id="controls">
+  <button id="export">Export JSON</button>
+  <label id="import-label">Import JSON<input type="file" id="import" accept="application/json" hidden /></label>
+  <button id="clear">Clear</button>
+</div>
+
+<div id="crate-section" class="dupe-section"></div>
+<div id="inventory-section" class="dupe-section"></div>
+
+<table id="captures-table">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Method</th>
+      <th>URL</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="captures-body"></tbody>
+</table>
+
+<script type="module" src="panel.js"></script>

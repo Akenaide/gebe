@@ -1,0 +1,7 @@
+{
+  "manifest_version": 3,
+  "name": "GBF API Capture",
+  "version": "1.0",
+  "permissions": ["storage", "unlimitedStorage"],
+  "devtools_page": "devtools.html"
+}
