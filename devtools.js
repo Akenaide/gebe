@@ -26,4 +26,4 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
   });
 });
 
-chrome.devtools.panels.create('API Capture', '', 'panel.html');
+chrome.devtools.panels.create('Gebe', '', 'panel.html');

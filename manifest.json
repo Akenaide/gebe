@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "GBF API Capture",
+  "name": "Gebe",
   "version": "1.0",
   "permissions": ["storage", "unlimitedStorage"],
   "devtools_page": "devtools.html"
