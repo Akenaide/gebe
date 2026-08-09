@@ -1,3 +1,5 @@
+const ATTRIBUTE_NAMES = { 1: 'Fire', 2: 'Water', 3: 'Earth', 4: 'Wind', 5: 'Light', 6: 'Dark' };
+
 export function countCrateDuplicates(entries, itemKindId) {
   const seenIds = new Set();
   const counts = new Map();
@@ -10,6 +12,7 @@ export function countCrateDuplicates(entries, itemKindId) {
     }
     for (const item of parsed?.list ?? []) {
       if (item.item_kind_id !== itemKindId) continue;
+      if (item.rarity !== '4') continue;
       if (seenIds.has(item.id)) continue;
       seenIds.add(item.id);
       const key = item.regular_id;
@@ -17,7 +20,12 @@ export function countCrateDuplicates(entries, itemKindId) {
       if (existing) {
         existing.count += 1;
       } else {
-        counts.set(key, { regular_id: key, item_name: item.item_name, count: 1 });
+        counts.set(key, {
+          regular_id: key,
+          item_name: item.item_name,
+          attribute_name: ATTRIBUTE_NAMES[item.attribute] ?? null,
+          count: 1,
+        });
       }
     }
   }
@@ -36,6 +44,7 @@ export function countInventoryDuplicates(entries, urlPattern) {
       continue;
     }
     for (const item of parsed?.list ?? []) {
+      if (item.master?.rarity !== '4') continue;
       const paramId = item.param?.id;
       if (seenIds.has(paramId)) continue;
       seenIds.add(paramId);
@@ -50,7 +59,40 @@ export function countInventoryDuplicates(entries, urlPattern) {
       }
     }
   }
-  return [...groups.values()]
-    .filter(g => g.zeroStarCount + g.nonZeroStars.length > 1)
-    .sort((a, b) => (b.zeroStarCount + b.nonZeroStars.length) - (a.zeroStarCount + a.nonZeroStars.length));
+  return [...groups.values()];
+}
+
+export function combineDuplicateSections(crateDupes, inventoryDupes) {
+  const rows = new Map();
+  for (const c of crateDupes) {
+    rows.set(c.regular_id, {
+      id: c.regular_id,
+      item_name: c.item_name,
+      attribute_name: c.attribute_name ?? null,
+      crateCount: c.count,
+      zeroStarCount: 0,
+      nonZeroStars: [],
+    });
+  }
+  for (const inv of inventoryDupes) {
+    const existing = rows.get(inv.master_id);
+    if (existing) {
+      existing.zeroStarCount = inv.zeroStarCount;
+      existing.nonZeroStars = inv.nonZeroStars;
+    } else {
+      rows.set(inv.master_id, {
+        id: inv.master_id,
+        item_name: null,
+        attribute_name: null,
+        crateCount: 0,
+        zeroStarCount: inv.zeroStarCount,
+        nonZeroStars: inv.nonZeroStars,
+      });
+    }
+  }
+  return [...rows.values()].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+}
+
+function sortKey(row) {
+  return row.item_name ?? String(row.id);
 }

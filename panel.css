@@ -14,6 +14,22 @@ body {
   cursor: pointer;
 }
 
+.filter-bar {
+  margin-bottom: 8px;
+}
+
+.filter-btn {
+  margin-right: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.filter-btn.active {
+  font-weight: bold;
+  background: #444;
+  color: #fff;
+}
+
 .dupe-section {
   margin-bottom: 12px;
 }
@@ -22,37 +38,68 @@ body {
   margin: 4px 0;
 }
 
-.dupe-row {
+.dupe-grid {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.dupe-row img {
-  width: 24px;
-  height: 24px;
+.dupe-card {
+  width: 96px;
+  text-align: center;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+.thumb-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
 }
 
-th,
-td {
-  text-align: left;
-  padding: 2px 6px;
-  border-bottom: 1px solid #444;
+.thumb-wrap img {
+  width: 72px;
+  height: 72px;
+  border-radius: 4px;
 }
 
-tr.capture-row {
-  cursor: pointer;
+.thumb-wrap::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #222;
+  display: none;
 }
 
-tr.capture-detail pre {
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 300px;
-  overflow-y: auto;
+.dupe-card.level-3 .thumb-wrap::after {
+  display: block;
+  background: #e0a030;
+}
+
+.dupe-card.level-4plus .thumb-wrap::after {
+  display: block;
+  background: #3ea34c;
+}
+
+.dupe-card .name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dupe-card .total {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.dupe-card .breakdown {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

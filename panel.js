@@ -1,4 +1,4 @@
-import { countCrateDuplicates, countInventoryDuplicates } from './src/itemStats.js';
+import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
 import { mergeEntries } from './src/ringBuffer.js';
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
@@ -7,79 +7,77 @@ function thumbnailUrl(assetFolder, id) {
   return `${ASSET_BASE}/${assetFolder}/s/${id}.jpg`;
 }
 
-function renderCrateDuplicateSection(container, title, itemKindId, assetFolder, captures) {
-  const dupes = countCrateDuplicates(captures, itemKindId).filter(d => d.count > 1);
-  container.innerHTML = `<h3>${title}</h3>`;
-  for (const dupe of dupes) {
-    const row = document.createElement('div');
-    row.className = 'dupe-row';
-    row.innerHTML = `<img src="${thumbnailUrl(assetFolder, dupe.regular_id)}" /><span>${dupe.item_name} ×${dupe.count}</span>`;
-    container.appendChild(row);
-  }
+function wikiUrl(itemName) {
+  return `https://gbf.wiki/${encodeURIComponent(itemName.replace(/ /g, '_'))}`;
 }
 
-function renderInventoryDuplicateSection(container, title, urlPattern, assetFolder, captures) {
-  const dupes = countInventoryDuplicates(captures, urlPattern);
-  container.innerHTML = `<h3>${title}</h3>`;
-  for (const dupe of dupes) {
-    const row = document.createElement('div');
-    row.className = 'dupe-row';
-    const stars = dupe.nonZeroStars.map(s => `★${s.evolution}`).join(' ');
-    const parts = [];
-    if (dupe.zeroStarCount > 0) parts.push(`×${dupe.zeroStarCount} at 0★`);
-    if (stars) parts.push(stars);
-    row.innerHTML = `<img src="${thumbnailUrl(assetFolder, dupe.master_id)}" /><span>${parts.join(', ')}</span>`;
-    container.appendChild(row);
-  }
-}
+const ATTRIBUTES = ['Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark'];
+let selectedAttribute = null;
+let lastCaptures = [];
 
-function renderCaptures(captures) {
-  const body = document.getElementById('captures-body');
-  body.innerHTML = '';
-  for (const capture of captures) {
-    const row = document.createElement('tr');
-    row.className = 'capture-row';
-    row.innerHTML = `
-      <td>${new Date(capture.capturedAt).toLocaleTimeString()}</td>
-      <td>${capture.method}</td>
-      <td>${capture.url}</td>
-      <td>${capture.status}</td>
-    `;
-    const detail = document.createElement('tr');
-    detail.className = 'capture-detail';
-    detail.style.display = 'none';
-    const detailCell = document.createElement('td');
-    detailCell.colSpan = 4;
-    detailCell.innerHTML = `<pre>${JSON.stringify(
-      { requestBody: capture.requestBody, responseBody: capture.responseBody },
-      null,
-      2
-    )}</pre>`;
-    detail.appendChild(detailCell);
-    row.addEventListener('click', () => {
-      detail.style.display = detail.style.display === 'none' ? '' : 'none';
+function renderFilterBar(container) {
+  container.innerHTML = '';
+  const options = [null, ...ATTRIBUTES];
+  for (const attr of options) {
+    const btn = document.createElement('button');
+    btn.textContent = attr ?? 'All';
+    btn.className = attr === selectedAttribute ? 'filter-btn active' : 'filter-btn';
+    btn.addEventListener('click', () => {
+      selectedAttribute = attr;
+      render(lastCaptures);
     });
-    body.appendChild(row);
-    body.appendChild(detail);
+    container.appendChild(btn);
+  }
+}
+
+function renderDuplicatesSection(container, captures, { title, itemKindId, urlPattern, assetFolder }) {
+  const crateDupes = countCrateDuplicates(captures, itemKindId);
+  const inventoryDupes = countInventoryDuplicates(captures, urlPattern);
+  let rows = combineDuplicateSections(crateDupes, inventoryDupes);
+  if (selectedAttribute) rows = rows.filter(row => row.attribute_name === selectedAttribute);
+
+  container.innerHTML = `<h3>${title}</h3><div class="dupe-grid"></div>`;
+  const grid = container.querySelector('.dupe-grid');
+  for (const row of rows) {
+    const total = row.crateCount + row.zeroStarCount + row.nonZeroStars.length;
+    const stars = row.nonZeroStars.map(s => `${s.evolution}★`).join(' ');
+    const breakdown = [];
+    if (row.crateCount > 0) breakdown.push(`${row.crateCount} unclaimed`);
+    if (row.zeroStarCount > 0) breakdown.push(`${row.zeroStarCount} owned 0★`);
+    if (stars) breakdown.push(`owned ${stars}`);
+
+    const el = document.createElement('div');
+    el.className = 'dupe-card';
+    if (total === 3) el.classList.add('level-3');
+    if (total >= 4) el.classList.add('level-4plus');
+    el.title = row.item_name ?? String(row.id);
+    el.innerHTML = `
+      <div class="thumb-wrap">
+        <img src="${thumbnailUrl(assetFolder, row.id)}" />
+      </div>
+      <div class="name">${row.item_name ? `<a href="${wikiUrl(row.item_name)}" target="_blank" rel="noopener">${row.item_name}</a>` : row.id}</div>
+      <div class="total">×${total}</div>
+      <div class="breakdown">${breakdown.join(', ')}</div>
+    `;
+    grid.appendChild(el);
   }
 }
 
 function render(captures) {
-  renderCaptures(captures);
-  renderCrateDuplicateSection(
-    document.getElementById('crate-section'),
-    'Unclaimed Summon Duplicates',
-    '2',
-    'summon',
-    captures
-  );
-  renderInventoryDuplicateSection(
-    document.getElementById('inventory-section'),
-    'Summon Inventory Duplicates',
-    '/summon/list/',
-    'summon',
-    captures
-  );
+  lastCaptures = captures;
+  renderFilterBar(document.getElementById('attribute-filter'));
+  renderDuplicatesSection(document.getElementById('summon-duplicates-section'), captures, {
+    title: 'Summons',
+    itemKindId: '2',
+    urlPattern: '/summon/list/',
+    assetFolder: 'summon',
+  });
+  renderDuplicatesSection(document.getElementById('weapon-duplicates-section'), captures, {
+    title: 'Weapons',
+    itemKindId: '1',
+    urlPattern: '/weapon/list/',
+    assetFolder: 'weapon',
+  });
 }
 
 function loadAndRender() {

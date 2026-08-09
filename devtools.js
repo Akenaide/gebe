@@ -17,7 +17,6 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
   request.getContent(content => {
     appendCapture({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      capturedAt: Date.now(),
       url: request.request.url,
       method: request.request.method,
       status: request.response.status,
