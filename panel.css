@@ -213,7 +213,7 @@ body {
 .element-dark { --element-color: #8e5bc7; }
 .element-misc { --element-color: #888; }
 
-#record.recording {
+#capture.capturing {
   background: #c00;
   color: #fff;
 }

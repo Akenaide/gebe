@@ -1,62 +1,34 @@
 const ATTRIBUTE_NAMES = { 1: 'Fire', 2: 'Water', 3: 'Earth', 4: 'Wind', 5: 'Light', 6: 'Dark' };
 
-export function countCrateDuplicates(entries, itemKindId) {
-  const seenIds = new Set();
+export function countCrateDuplicates(crate, itemKindId) {
   const counts = new Map();
-  for (const entry of entries) {
-    let parsed;
-    try {
-      parsed = JSON.parse(entry.responseBody);
-    } catch {
-      continue;
-    }
-    for (const item of parsed?.list ?? []) {
-      if (item.item_kind_id !== itemKindId) continue;
-      if (item.rarity !== '4') continue;
-      if (seenIds.has(item.id)) continue;
-      seenIds.add(item.id);
-      const key = item.regular_id;
-      const existing = counts.get(key);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        counts.set(key, {
-          regular_id: key,
-          item_name: item.item_name,
-          attribute_name: ATTRIBUTE_NAMES[item.attribute] ?? null,
-          count: 1,
-        });
-      }
+  for (const item of Object.values(crate)) {
+    if (item.item_kind_id !== itemKindId) continue;
+    const key = item.regular_id;
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, {
+        regular_id: key,
+        item_name: item.item_name,
+        attribute_name: ATTRIBUTE_NAMES[item.attribute] ?? null,
+        count: 1,
+      });
     }
   }
   return [...counts.values()].sort((a, b) => b.count - a.count);
 }
 
-export function countInventoryDuplicates(entries, urlPattern) {
-  const seenIds = new Set();
+export function countInventoryDuplicates(owned) {
   const groups = new Map();
-  for (const entry of entries) {
-    if (!entry.url?.includes(urlPattern)) continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(entry.responseBody);
-    } catch {
-      continue;
-    }
-    for (const item of parsed?.list ?? []) {
-      if (item.master?.rarity !== '4') continue;
-      const paramId = item.param?.id;
-      if (seenIds.has(paramId)) continue;
-      seenIds.add(paramId);
-      const key = item.master?.id;
-      const evolution = Number(item.param?.evolution) || 0;
-      if (!groups.has(key)) groups.set(key, { master_id: key, zeroStarCount: 0, nonZeroStars: [] });
-      const group = groups.get(key);
-      if (evolution === 0) {
-        group.zeroStarCount += 1;
-      } else {
-        group.nonZeroStars.push({ param_id: paramId, evolution });
-      }
+  for (const [copyId, { master_id, evolution }] of Object.entries(owned)) {
+    if (!groups.has(master_id)) groups.set(master_id, { master_id, zeroStarCount: 0, nonZeroStars: [] });
+    const group = groups.get(master_id);
+    if (evolution === 0) {
+      group.zeroStarCount += 1;
+    } else {
+      group.nonZeroStars.push({ param_id: Number(copyId), evolution });
     }
   }
   return [...groups.values()];
@@ -95,4 +67,32 @@ export function combineDuplicateSections(crateDupes, inventoryDupes) {
 
 function sortKey(row) {
   return row.item_name ?? String(row.id);
+}
+
+const OWNED_KEYS = { '/summon/list/': 'ownedSummons', '/weapon/list/': 'ownedWeapons' };
+
+export function extractItems(capture) {
+  const ownedKey = Object.entries(OWNED_KEYS).find(([urlPattern]) => capture.url.includes(urlPattern))?.[1];
+  if (!ownedKey && !capture.url.includes('/present/list/')) return {};
+  let list;
+  try {
+    list = JSON.parse(capture.responseBody)?.list ?? [];
+  } catch {
+    return {};
+  }
+  if (ownedKey) {
+    const owned = {};
+    for (const item of list) {
+      if (item.master.rarity !== '4') continue;
+      owned[item.param.id] = { master_id: item.master.id, evolution: Number(item.param.evolution) || 0 };
+    }
+    return { [ownedKey]: owned };
+  }
+  const crate = {};
+  for (const item of list) {
+    if (item.rarity !== '4') continue;
+    const { item_kind_id, regular_id, item_name, attribute } = item;
+    crate[item.id] = { item_kind_id, regular_id, item_name, attribute };
+  }
+  return { crate };
 }

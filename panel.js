@@ -1,5 +1,4 @@
-import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
-import { mergeEntries } from './src/ringBuffer.js';
+import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections, extractItems } from './src/itemStats.js';
 import { findMissingSummons, groupLayout } from './src/supporters.js';
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
@@ -14,7 +13,8 @@ function wikiUrl(itemName) {
 
 const ATTRIBUTES = ['Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark'];
 let selectedAttribute = null;
-let lastCaptures = [];
+const ITEM_KEYS = ['crate', 'ownedSummons', 'ownedWeapons'];
+let items = { crate: {}, ownedSummons: {}, ownedWeapons: {} };
 let friends = {};
 let watchedSummons = [];
 let summonMinLevels = {};
@@ -31,15 +31,15 @@ function renderFilterBar(container) {
     btn.className = attr === selectedAttribute ? 'filter-btn active' : 'filter-btn';
     btn.addEventListener('click', () => {
       selectedAttribute = attr;
-      render(lastCaptures);
+      render();
     });
     container.appendChild(btn);
   }
 }
 
-function renderDuplicatesSection(container, captures, { title, itemKindId, urlPattern, assetFolder }) {
-  const crateDupes = countCrateDuplicates(captures, itemKindId);
-  const inventoryDupes = countInventoryDuplicates(captures, urlPattern);
+function renderDuplicatesSection(container, owned, { title, itemKindId, assetFolder }) {
+  const crateDupes = countCrateDuplicates(items.crate, itemKindId);
+  const inventoryDupes = countInventoryDuplicates(owned);
   let rows = combineDuplicateSections(crateDupes, inventoryDupes);
   if (selectedAttribute) rows = rows.filter(row => row.attribute_name === selectedAttribute);
 
@@ -227,36 +227,35 @@ function renderFriendsSection(container) {
   }
 }
 
-function render(captures) {
-  lastCaptures = captures;
+function render() {
   renderFilterBar(document.getElementById('attribute-filter'));
-  renderDuplicatesSection(document.getElementById('summon-duplicates-section'), captures, {
+  renderDuplicatesSection(document.getElementById('summon-duplicates-section'), items.ownedSummons, {
     title: 'Summons',
     itemKindId: '2',
-    urlPattern: '/summon/list/',
     assetFolder: 'summon',
   });
-  renderDuplicatesSection(document.getElementById('weapon-duplicates-section'), captures, {
+  renderDuplicatesSection(document.getElementById('weapon-duplicates-section'), items.ownedWeapons, {
     title: 'Weapons',
     itemKindId: '1',
-    urlPattern: '/weapon/list/',
     assetFolder: 'weapon',
   });
 }
 
 function loadAndRender() {
-  chrome.storage.local.get(['captures', 'friends', 'watchedSummons', 'summonMinLevels', 'hiddenFriends'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'watchedSummons', 'summonMinLevels', 'hiddenFriends'], data => {
     friends = data.friends || {};
     hiddenFriends = data.hiddenFriends || {};
     watchedSummons = data.watchedSummons || [];
     summonMinLevels = data.summonMinLevels || {};
-    render(data.captures || []);
+    for (const key of ITEM_KEYS) items[key] = data[key] || {};
+    render();
     renderFriendsSection(document.getElementById('friends-section'));
   });
 }
 
 chrome.storage.onChanged.addListener(changes => {
-  if (changes.captures) render(changes.captures.newValue || []);
+  for (const key of ITEM_KEYS) if (changes[key]) items[key] = changes[key].newValue || {};
+  if (ITEM_KEYS.some(key => changes[key])) render();
   if (changes.friends) friends = changes.friends.newValue || {};
   if (changes.watchedSummons) watchedSummons = changes.watchedSummons.newValue || [];
   if (changes.summonMinLevels) summonMinLevels = changes.summonMinLevels.newValue || {};
@@ -291,9 +290,11 @@ document.getElementById('import').addEventListener('change', event => {
   const reader = new FileReader();
   reader.onload = () => {
     const imported = JSON.parse(reader.result);
-    chrome.storage.local.get('captures', data => {
-      const merged = mergeEntries(data.captures || [], imported);
-      chrome.storage.local.set({ captures: merged });
+    chrome.storage.local.get(ITEM_KEYS, data => {
+      for (const capture of imported) {
+        for (const [key, extracted] of Object.entries(extractItems(capture))) data[key] = { ...data[key], ...extracted };
+      }
+      chrome.storage.local.set(data);
     });
   };
   reader.readAsText(file);
@@ -301,24 +302,24 @@ document.getElementById('import').addEventListener('change', event => {
 });
 
 document.getElementById('clear').addEventListener('click', () => {
-  chrome.storage.local.remove('captures');
+  chrome.storage.local.remove(['captures', ...ITEM_KEYS]);
 });
 
-const recordButton = document.getElementById('record');
-let recording = false;
-function renderRecordButton() {
-  recordButton.textContent = recording ? 'Stop recording' : 'Start recording';
-  recordButton.classList.toggle('recording', recording);
+const captureButton = document.getElementById('capture');
+let capturing = false;
+function renderCaptureButton() {
+  captureButton.textContent = capturing ? 'Stop capturing' : 'Start capturing';
+  captureButton.classList.toggle('capturing', capturing);
 }
-recordButton.addEventListener('click', () => chrome.storage.local.set({ recording: !recording }));
+captureButton.addEventListener('click', () => chrome.storage.local.set({ capturing: !capturing }));
 chrome.storage.onChanged.addListener(changes => {
-  if (!changes.recording) return;
-  recording = changes.recording.newValue;
-  renderRecordButton();
+  if (!changes.capturing) return;
+  capturing = changes.capturing.newValue;
+  renderCaptureButton();
 });
-chrome.storage.local.get('recording', data => {
-  recording = !!data.recording;
-  renderRecordButton();
+chrome.storage.local.get('capturing', data => {
+  capturing = !!data.capturing;
+  renderCaptureButton();
 });
 
 loadAndRender();

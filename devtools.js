@@ -1,5 +1,6 @@
 import { shouldCapture } from './src/capture.js';
 import { parseSupporters, mergeFriendHistory } from './src/supporters.js';
+import { extractItems } from './src/itemStats.js';
 
 let writeQueue = Promise.resolve();
 
@@ -15,7 +16,7 @@ function enqueueUpdate(key, update) {
   );
 }
 
-function onRequestFinished(request) {
+chrome.devtools.network.onRequestFinished.addListener(request => {
   if (!shouldCapture(request.request.url)) return;
   request.getContent(content => {
     const capture = {
@@ -26,20 +27,22 @@ function onRequestFinished(request) {
       requestBody: request.request.postData?.text ?? null,
       responseBody: content ?? null,
     };
-    enqueueUpdate('captures', captures => [...(captures || []), capture]);
+    if (capturing) enqueueUpdate('captures', captures => [...(captures || []), capture]);
+    for (const [key, items] of Object.entries(extractItems(capture))) {
+      if (Object.keys(items).length) enqueueUpdate(key, stored => ({ ...stored, ...items }));
+    }
     if (capture.url.includes('/quest/content/supporter_raid/')) {
       const supporters = parseSupporters(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
     }
   });
-}
+});
 
-// Recording off by default: capturing every request slows the game down. Removing the listener (not just ignoring) avoids DevTools' per-request overhead.
-chrome.storage.local.set({ recording: false });
+// Saving every raw capture made each write rewrite an ever-growing list and slowed the game, so it's off by default.
+let capturing = false;
+chrome.storage.local.set({ capturing });
 chrome.storage.onChanged.addListener(changes => {
-  if (!changes.recording) return;
-  if (changes.recording.newValue) chrome.devtools.network.onRequestFinished.addListener(onRequestFinished);
-  else chrome.devtools.network.onRequestFinished.removeListener(onRequestFinished);
+  if (changes.capturing) capturing = changes.capturing.newValue;
 });
 
 chrome.devtools.panels.create('Gebe', '', 'panel.html');
