@@ -1,5 +1,6 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
 import { mergeEntries } from './src/ringBuffer.js';
+import { findMissingSummons, groupLayout } from './src/supporters.js';
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
 
@@ -14,6 +15,12 @@ function wikiUrl(itemName) {
 const ATTRIBUTES = ['Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark'];
 let selectedAttribute = null;
 let lastCaptures = [];
+let friends = {};
+let watchedSummons = [];
+let summonMinLevels = {};
+let hiddenFriends = {};
+let showAllFriends = false;
+let showHiddenFriends = false;
 
 function renderFilterBar(container) {
   container.innerHTML = '';
@@ -63,6 +70,163 @@ function renderDuplicatesSection(container, captures, { title, itemKindId, urlPa
   }
 }
 
+function summonThumb(id, title) {
+  const img = document.createElement('img');
+  img.className = 'friend-summon';
+  img.src = thumbnailUrl('summon', id);
+  img.title = title;
+  return img;
+}
+
+// A summon thumbnail with a caption underneath (a level, or a min-level input).
+function summonTile(id, title, caption) {
+  const tile = document.createElement('div');
+  tile.className = 'summon-tile';
+  tile.append(summonThumb(id, title), caption);
+  return tile;
+}
+
+function levelCaption(level) {
+  const caption = document.createElement('div');
+  caption.className = 'friend-meta';
+  caption.textContent = level ? `Lvl ${level}` : '—';
+  return caption;
+}
+
+// A friend's supports laid out like the game's element tabs, all tabs visible at once.
+function supportGrid(friend, allSummons) {
+  const grid = document.createElement('div');
+  grid.className = 'support-grid';
+  if (!friend.layout || !Object.keys(friend.layout).length) {
+    grid.textContent = 'no layout yet — seen before layouts were tracked';
+    grid.classList.add('friend-meta');
+    return grid;
+  }
+  for (const { element, slots } of groupLayout(friend.layout)) {
+    const column = document.createElement('div');
+    column.className = `support-col element-${element.toLowerCase()}`;
+    const header = document.createElement('div');
+    header.className = 'support-col-header';
+    header.textContent = element;
+    column.appendChild(header);
+    for (const { id, level } of slots) column.appendChild(summonTile(id, allSummons[id] ?? id, levelCaption(level)));
+    grid.appendChild(column);
+  }
+  return grid;
+}
+
+// "Hide" tick plus a note on why this friend is fine despite missing summons.
+function hideControls(userId) {
+  const wrap = document.createElement('span');
+  wrap.className = 'hide-controls';
+  const tick = document.createElement('input');
+  tick.type = 'checkbox';
+  tick.checked = userId in hiddenFriends;
+  const note = document.createElement('input');
+  note.type = 'text';
+  note.className = 'hide-note';
+  note.placeholder = 'why keep them?';
+  note.value = hiddenFriends[userId] ?? '';
+  const save = () => {
+    const next = { ...hiddenFriends };
+    if (tick.checked) next[userId] = note.value;
+    else delete next[userId];
+    chrome.storage.local.set({ hiddenFriends: next });
+  };
+  tick.addEventListener('change', save);
+  note.addEventListener('change', () => tick.checked && save());
+  const label = document.createElement('label');
+  label.append(tick, ' hide');
+  wrap.append(label, note);
+  return wrap;
+}
+
+function renderFriendsSection(container) {
+  const allSummons = {};
+  for (const friend of Object.values(friends)) Object.assign(allSummons, friend.seenSummons);
+  // Keep watched summons pickable after "Clear friends", so they can still be un-watched.
+  for (const id of watchedSummons) allSummons[id] ??= id;
+
+  container.innerHTML = `<h3>Friends (${Object.keys(friends).length} tracked)</h3>
+    <div class="friend-controls">
+      <label><input type="checkbox" class="show-all" ${showAllFriends ? 'checked' : ''} /> Show all friends</label>
+      <label><input type="checkbox" class="show-hidden" ${showHiddenFriends ? 'checked' : ''} /> Show hidden (${Object.keys(hiddenFriends).length})</label>
+      <button class="clear-friends">Clear friends</button>
+    </div>
+    <div class="friend-picker"></div>
+    <div class="friend-list"></div>`;
+  container.querySelector('.show-all').addEventListener('change', event => {
+    showAllFriends = event.target.checked;
+    renderFriendsSection(container);
+  });
+  container.querySelector('.show-hidden').addEventListener('change', event => {
+    showHiddenFriends = event.target.checked;
+    renderFriendsSection(container);
+  });
+  container.querySelector('.clear-friends').addEventListener('click', () => chrome.storage.local.remove('friends'));
+
+  // Watch-list picker: click a summon to toggle whether friends missing it get flagged.
+  const picker = container.querySelector('.friend-picker');
+  for (const [id, name] of Object.entries(allSummons).sort((a, b) => a[1].localeCompare(b[1]))) {
+    const thumb = summonThumb(id, name);
+    thumb.addEventListener('click', () => {
+      const next = watchedSummons.includes(id) ? watchedSummons.filter(w => w !== id) : [...watchedSummons, id];
+      chrome.storage.local.set({ watchedSummons: next });
+    });
+    if (!watchedSummons.includes(id)) {
+      picker.appendChild(thumb);
+      continue;
+    }
+    thumb.classList.add('watched');
+    const minInput = document.createElement('input');
+    minInput.type = 'number';
+    minInput.className = 'min-level';
+    minInput.placeholder = 'min Lvl';
+    minInput.value = summonMinLevels[id] ?? '';
+    minInput.addEventListener('change', () => {
+      const next = { ...summonMinLevels };
+      if (minInput.value) next[id] = Number(minInput.value);
+      else delete next[id];
+      chrome.storage.local.set({ summonMinLevels: next });
+    });
+    const tile = document.createElement('div');
+    tile.className = 'summon-tile';
+    tile.append(thumb, minInput);
+    picker.appendChild(tile);
+  }
+
+  let rows = showAllFriends
+    ? Object.entries(friends).map(([userId, friend]) => ({ userId, ...friend })).sort((a, b) => b.sightings - a.sightings)
+    : findMissingSummons(friends, watchedSummons, summonMinLevels);
+  if (!showHiddenFriends) rows = rows.filter(row => !(row.userId in hiddenFriends));
+  const list = container.querySelector('.friend-list');
+  for (const row of rows) {
+    const card = document.createElement('div');
+    card.className = 'friend-card';
+    const el = document.createElement('div');
+    el.className = 'friend-row';
+    const link = document.createElement('a');
+    link.href = `https://game.granbluefantasy.jp/#profile/${row.userId}`;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = row.name;
+    const meta = document.createElement('span');
+    meta.className = 'friend-meta';
+    meta.textContent = `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}`;
+    el.append(link, meta, hideControls(row.userId));
+    if (row.missing?.length) {
+      const label = document.createElement('span');
+      label.className = 'friend-meta';
+      label.textContent = 'missing:';
+      el.appendChild(label);
+      // Best level seen tells "has it, but too low" apart from "never seen with it" (—).
+      for (const id of row.missing) el.appendChild(summonTile(id, allSummons[id] ?? id, levelCaption(row.bestLevels?.[id])));
+    }
+    card.append(el, supportGrid(row, allSummons));
+    list.appendChild(card);
+  }
+}
+
 function render(captures) {
   lastCaptures = captures;
   renderFilterBar(document.getElementById('attribute-filter'));
@@ -81,12 +245,33 @@ function render(captures) {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get('captures', data => render(data.captures || []));
+  chrome.storage.local.get(['captures', 'friends', 'watchedSummons', 'summonMinLevels', 'hiddenFriends'], data => {
+    friends = data.friends || {};
+    hiddenFriends = data.hiddenFriends || {};
+    watchedSummons = data.watchedSummons || [];
+    summonMinLevels = data.summonMinLevels || {};
+    render(data.captures || []);
+    renderFriendsSection(document.getElementById('friends-section'));
+  });
 }
 
 chrome.storage.onChanged.addListener(changes => {
   if (changes.captures) render(changes.captures.newValue || []);
+  if (changes.friends) friends = changes.friends.newValue || {};
+  if (changes.watchedSummons) watchedSummons = changes.watchedSummons.newValue || [];
+  if (changes.summonMinLevels) summonMinLevels = changes.summonMinLevels.newValue || {};
+  if (changes.hiddenFriends) hiddenFriends = changes.hiddenFriends.newValue || {};
+  if (changes.friends || changes.watchedSummons || changes.summonMinLevels || changes.hiddenFriends) renderFriendsSection(document.getElementById('friends-section'));
 });
+
+for (const tabButton of document.querySelectorAll('#tabs button')) {
+  tabButton.addEventListener('click', () => {
+    for (const other of document.querySelectorAll('#tabs button')) {
+      other.classList.toggle('active', other === tabButton);
+      document.getElementById(other.dataset.tab).hidden = other !== tabButton;
+    }
+  });
+}
 
 document.getElementById('export').addEventListener('click', () => {
   chrome.storage.local.get('captures', data => {

@@ -6,9 +6,18 @@
   <button id="clear">Clear</button>
 </div>
 
-<div id="attribute-filter" class="filter-bar"></div>
+<div id="tabs" class="filter-bar">
+  <button class="filter-btn active" data-tab="duplicates-tab">Duplicates</button>
+  <button class="filter-btn" data-tab="friends-tab">Friends</button>
+</div>
 
-<div id="summon-duplicates-section" class="dupe-section"></div>
-<div id="weapon-duplicates-section" class="dupe-section"></div>
+<div id="duplicates-tab" class="tab">
+  <div id="attribute-filter" class="filter-bar"></div>
+  <div id="summon-duplicates-section" class="dupe-section"></div>
+  <div id="weapon-duplicates-section" class="dupe-section"></div>
+</div>
+<div id="friends-tab" class="tab" hidden>
+  <div id="friends-section" class="dupe-section"></div>
+</div>
 
 <script type="module" src="panel.js"></script>
