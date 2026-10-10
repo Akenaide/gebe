@@ -304,4 +304,21 @@ document.getElementById('clear').addEventListener('click', () => {
   chrome.storage.local.remove('captures');
 });
 
+const recordButton = document.getElementById('record');
+let recording = false;
+function renderRecordButton() {
+  recordButton.textContent = recording ? 'Stop recording' : 'Start recording';
+  recordButton.classList.toggle('recording', recording);
+}
+recordButton.addEventListener('click', () => chrome.storage.local.set({ recording: !recording }));
+chrome.storage.onChanged.addListener(changes => {
+  if (!changes.recording) return;
+  recording = changes.recording.newValue;
+  renderRecordButton();
+});
+chrome.storage.local.get('recording', data => {
+  recording = !!data.recording;
+  renderRecordButton();
+});
+
 loadAndRender();

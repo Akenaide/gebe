@@ -15,7 +15,7 @@ function enqueueUpdate(key, update) {
   );
 }
 
-chrome.devtools.network.onRequestFinished.addListener(request => {
+function onRequestFinished(request) {
   if (!shouldCapture(request.request.url)) return;
   request.getContent(content => {
     const capture = {
@@ -32,6 +32,14 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
     }
   });
+}
+
+// Recording off by default: capturing every request slows the game down. Removing the listener (not just ignoring) avoids DevTools' per-request overhead.
+chrome.storage.local.set({ recording: false });
+chrome.storage.onChanged.addListener(changes => {
+  if (!changes.recording) return;
+  if (changes.recording.newValue) chrome.devtools.network.onRequestFinished.addListener(onRequestFinished);
+  else chrome.devtools.network.onRequestFinished.removeListener(onRequestFinished);
 });
 
 chrome.devtools.panels.create('Gebe', '', 'panel.html');

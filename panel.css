@@ -212,3 +212,8 @@ body {
 .element-light { --element-color: #d4b026; }
 .element-dark { --element-color: #8e5bc7; }
 .element-misc { --element-color: #888; }
+
+#record.recording {
+  background: #c00;
+  color: #fff;
+}
