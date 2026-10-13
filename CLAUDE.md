@@ -8,12 +8,15 @@ A Chrome (Manifest V3) DevTools extension that watches Granblue Fantasy's (`game
 
 No `package.json`, no npm dependencies, no build step. Everything is plain ESM JavaScript run directly by the browser (extension files) or Node (tests).
 
+Use the terms in `GLOSSARY.md` (capture, crate, support…) in code, UI and replies.
+
 ## Commands
 
 - Run all tests: `node --test test/*.test.mjs`
 - Run one test file: `node --test test/itemStats.test.mjs`
 - Syntax-check a file without running it: `node --check <file>`
 - Load the extension: `chrome://extensions` → enable Developer mode → "Load unpacked" → select this directory.
+- Release: bump `version` in `manifest.json` in its own commit, `Bump version to X.Y`.
 - After any code change: reload the extension on `chrome://extensions`, **and** fully close and reopen DevTools on the target tab. Reloading the extension alone does not reliably refresh an already-open DevTools panel — it can keep running stale JS until DevTools itself is closed and reopened.
 
 There is no way to inspect the DevTools panel's own DOM/state programmatically (it isn't a regular tab) — debugging it means either reasoning from the pure functions in `src/` directly (feed them real captured data), or asking the user to check the panel and/or export `captures.json` via the panel's own "Export JSON" button.
