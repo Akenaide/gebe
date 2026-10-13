@@ -185,7 +185,7 @@ function renderFriendsSection(container) {
   });
   container.querySelector('.clear-friends').addEventListener('click', () => chrome.storage.local.remove('friends'));
 
-  // Friends from the friend list pages whose Details hasn't been opened yet, so the player can go open them.
+  // Friends from the friend list pages Gebe has no record of yet; opening their Details fills one in.
   const missingDetails = findMissingDetails(friendList, friends);
   if (missingDetails.length) {
     const block = container.querySelector('.missing-details');

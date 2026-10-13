@@ -364,49 +364,27 @@ test('countSupportStats lists which friends offer each summon, by level', () => 
   });
 });
 
-test('mergeFriendHistory marks when a friend\'s Details was seen', () => {
-  /**
-   * Given an empty friends store,
-   * When a Details capture taken at time 2 is merged,
-   * Then the friend's detailsSeenAt is 2.
-   */
-  const userId = '1358003';
-  const seenAt = 2;
-  const details = [{ userId, name: 'hez', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 }];
-  assert.strictEqual(mergeFriendHistory({}, details, seenAt, { fromDetails: true })[userId].detailsSeenAt, seenAt);
-});
 
-test('findMissingDetails groups friends whose Details was never seen by friend list page', () => {
+test('findMissingDetails groups friends Gebe has no record of by friend list page', () => {
   /**
-   * Given a friend list with ゆず (page 1, Details seen), hez (page 3, seen only on a supporter page)
-   * and Haaselia (page 1, not tracked yet),
+   * Given a friend list with ゆず (page 1) and hez (page 3), both already tracked,
+   * and Haaselia (page 1) and Lyria (page 3), not tracked yet,
    * When findMissingDetails is called,
-   * Then it returns page 1 with Haaselia, then page 3 with hez.
+   * Then it returns page 1 with Haaselia, then page 3 with Lyria.
    */
   const friendList = {
     10733230: { name: 'ゆず', page: 1 },
     1358003: { name: 'hez', page: 3 },
     11279725: { name: 'Haaselia', page: 1 },
+    1932003: { name: 'Lyria', page: 3 },
   };
   const friends = {
-    10733230: { name: 'ゆず', detailsSeenAt: 2 },
+    10733230: { name: 'ゆず', sightings: 0 },
     1358003: { name: 'hez', sightings: 1 },
   };
   assert.deepStrictEqual(findMissingDetails(friendList, friends), [
     { page: 1, friends: [{ userId: '11279725', name: 'Haaselia' }] },
-    { page: 3, friends: [{ userId: '1358003', name: 'hez' }] },
+    { page: 3, friends: [{ userId: '1932003', name: 'Lyria' }] },
   ]);
 });
 
-test('mergeFriendHistory keeps the Details mark through a later sighting', () => {
-  /**
-   * Given a friend whose Details was seen at time 2,
-   * When a supporter page showing them is merged at time 3,
-   * Then detailsSeenAt is still 2.
-   */
-  const userId = '1358003';
-  const detailsSeenAt = 2;
-  const friends = { [userId]: { name: 'hez', seenSummons: {}, bestLevels: {}, layout: {}, sightings: 0, detailsSeenAt } };
-  const sighting = [{ userId, name: 'hez', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 }];
-  assert.strictEqual(mergeFriendHistory(friends, sighting, 3)[userId].detailsSeenAt, detailsSeenAt);
-});

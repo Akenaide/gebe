@@ -45,8 +45,6 @@ export function mergeFriendHistory(friends, supporters, seenAt, { fromDetails = 
         sightings: (known?.sightings ?? 0) + (fromDetails ? 0 : 1),
         lastSeen: fromDetails ? known?.lastSeen : seenAt,
       };
-      const detailsSeenAt = fromDetails ? seenAt : known?.detailsSeenAt;
-      if (detailsSeenAt) merged[userId].detailsSeenAt = detailsSeenAt;
     }
     merged[userId].seenSummons[summonId] = summonName;
     merged[userId].bestLevels[summonId] = Math.max(merged[userId].bestLevels[summonId] ?? 0, level);
@@ -113,11 +111,11 @@ export function countSupportStats(friends) {
   return { friendCount: withLayout.length, summons: Object.values(stats).sort((a, b) => b.friendCount - a.friendCount) };
 }
 
-// Friends from the friend list pages whose Details Gebe hasn't seen yet, grouped by the page they're on.
+// Friends from the friend list pages Gebe has no record of yet, grouped by the page they're on.
 export function findMissingDetails(friendList, friends) {
   const pages = {};
   for (const [userId, { name, page }] of Object.entries(friendList)) {
-    if (!friends[userId]?.detailsSeenAt) (pages[page] ??= []).push({ userId, name });
+    if (!(userId in friends)) (pages[page] ??= []).push({ userId, name });
   }
   // Integer keys iterate in ascending order, so pages come out sorted.
   return Object.entries(pages).map(([page, missing]) => ({ page: Number(page), friends: missing }));

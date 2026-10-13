@@ -44,7 +44,7 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
       enqueueUpdate('friendList', friendList => ({ ...friendList, ...listed }));
     }
     if (capture.url.includes('/friend/friend_fixed_summon/')) {
-      // shortcut: a Details with no supports set merges nothing, so that friend stays "Details missing"; mark it from the URL if it shows up.
+      // shortcut: a Details with no supports set merges nothing, so that friend stays listed as missing; mark it from the URL if it shows up.
       const supporters = parseFixedSummons(capture).map(support => ({ ...support, name: listedFriends[support.userId]?.name }));
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now(), { fromDetails: true }));
     }
