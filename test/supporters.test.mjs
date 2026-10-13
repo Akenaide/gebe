@@ -106,8 +106,8 @@ test('mergeFriendHistory updates a known friend without losing earlier summons',
   /**
    * Given a store where friend 10733230 (old name "yuzu") was seen once with Kaguya,
    * When a later capture shows them renamed ゆず and supporting Lucifer,
-   * Then they keep Kaguya and gain Lucifer, sightings goes to 2, the name becomes ゆず and
-   * lastSeen moves to the new capture time — and the original store object is left untouched.
+   * Then they keep Kaguya and gain Lucifer in seen summons, the layout is just Lucifer, sightings goes to 2,
+   * the name becomes ゆず and lastSeen moves to the new capture time — and the original store object is left untouched.
    */
   const userId = '10733230';
   const newName = 'ゆず';
@@ -121,7 +121,7 @@ test('mergeFriendHistory updates a known friend without losing earlier summons',
     name: newName,
     seenSummons: { 2040114000: 'Kaguya', 2040056000: 'Lucifer' },
     bestLevels: { 2040114000: 150, 2040056000: 250 },
-    layout: { 20: { id: '2040114000', level: 150 }, 15: { id: '2040056000', level: 250 } },
+    layout: { 15: { id: '2040056000', level: 250 } },
     sightings: 2,
     lastSeen: seenAt,
   });
@@ -142,21 +142,19 @@ test('mergeFriendHistory keeps the highest level seen for each summon', () => {
   assert.deepStrictEqual(after230[userId].bestLevels, { [hades]: 250 });
 });
 
-test('mergeFriendHistory updates only the layout slots shown in the new capture', () => {
+test('mergeFriendHistory replaces the whole layout with a supporter page', () => {
   /**
    * Given a friend whose known layout is Hades Lvl 230 in slot 6 (Dark) and Lucifer Lvl 250 in slot 15,
-   * When a new capture shows only slot 6, now Hades Lvl 250,
-   * Then slot 6 becomes Hades Lvl 250 and slot 15 keeps Lucifer — a slot missing from one capture
-   * keeps its last known summon.
+   * When a supporter page is merged showing only Hades Lvl 250 in slot 6,
+   * Then the layout is just slot 6 with Hades Lvl 250 — a supporter page shows every slot, so slot 15 was emptied.
    */
   const userId = '10733230';
-  const hades = { id: '2040090000', level: 230 };
-  const lucifer = { id: '2040056000', level: 250 };
+  const hades = { id: '2040090000', level: 250 };
   const friends = {
-    [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: { 6: hades, 15: lucifer }, sightings: 1, lastSeen: 1 },
+    [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: { 6: { id: hades.id, level: 230 }, 15: { id: '2040056000', level: 250 } }, sightings: 1, lastSeen: 1 },
   };
-  const result = mergeFriendHistory(friends, [{ userId, name: 'ゆず', summonId: hades.id, summonName: 'Hades', level: 250, slot: 6 }], 2);
-  assert.deepStrictEqual(result[userId].layout, { 6: { id: hades.id, level: 250 }, 15: lucifer });
+  const result = mergeFriendHistory(friends, [{ userId, name: 'ゆず', summonId: hades.id, summonName: 'Hades', level: hades.level, slot: 6 }], 2);
+  assert.deepStrictEqual(result[userId].layout, { 6: hades });
 });
 
 const LUCIFER = '2040056000';

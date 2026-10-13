@@ -26,7 +26,7 @@ export function parseSupporters(capture) {
   return supporters;
 }
 
-// fromDetails: the friend's Details page, which lists every slot.
+// fromDetails: the friend's Details page, which isn't a sighting.
 export function mergeFriendHistory(friends, supporters, seenAt, { fromDetails = false } = {}) {
   const merged = { ...friends };
   const updated = new Set();
@@ -40,8 +40,8 @@ export function mergeFriendHistory(friends, supporters, seenAt, { fromDetails = 
         seenSummons: { ...known?.seenSummons },
         // Records saved before levels were tracked have no bestLevels.
         bestLevels: { ...known?.bestLevels },
-        // A supporter page doesn't always show every slot, so unseen slots keep their last known summon.
-        layout: fromDetails ? {} : { ...known?.layout },
+        // Both a supporter page and Details show every slot, so the capture is the whole layout.
+        layout: {},
         sightings: (known?.sightings ?? 0) + (fromDetails ? 0 : 1),
         lastSeen: fromDetails ? known?.lastSeen : seenAt,
       };
