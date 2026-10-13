@@ -31,6 +31,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `captures` (raw, only while capturing) | `devtools.js` | Clear |
 | `capturing` | panel's Start/Stop; reset to off each time DevTools opens | — |
 | `friends` | `devtools.js` (supporter pages, Details) | Clear friends, per-friend delete |
+| `friendList` (`{userId: {name, page}}`, from the friend list pages) | `devtools.js` | per-friend delete |
 | `hiddenFriends` (`{userId: note}`) | panel | per-friend delete |
 | `watchedSummons`, `summonMinLevels` | panel | — |
 

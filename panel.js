@@ -1,5 +1,5 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections, extractItems } from './src/itemStats.js';
-import { countSupportStats, findMissingSummons, groupLayout } from './src/supporters.js';
+import { countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
 
@@ -16,6 +16,7 @@ let selectedAttribute = null;
 const ITEM_KEYS = ['crate', 'ownedSummons', 'ownedWeapons'];
 let items = { crate: {}, ownedSummons: {}, ownedWeapons: {} };
 let friends = {};
+let friendList = {};
 let watchedSummons = [];
 let summonMinLevels = {};
 let hiddenFriends = {};
@@ -141,17 +142,19 @@ function hideControls(userId) {
   return wrap;
 }
 
-// For a friend just unfriended in game; their hide note goes too, since there's nothing left to hide.
+// For a friend just unfriended in game; their hide note and friend list entry go too.
 function deleteButton(userId) {
   const button = document.createElement('button');
   button.textContent = 'delete';
   button.addEventListener('click', () => {
-    chrome.storage.local.get(['friends', 'hiddenFriends'], data => {
+    chrome.storage.local.get(['friends', 'hiddenFriends', 'friendList'], data => {
       const nextFriends = { ...data.friends };
       const nextHidden = { ...data.hiddenFriends };
+      const nextList = { ...data.friendList };
       delete nextFriends[userId];
       delete nextHidden[userId];
-      chrome.storage.local.set({ friends: nextFriends, hiddenFriends: nextHidden });
+      delete nextList[userId];
+      chrome.storage.local.set({ friends: nextFriends, hiddenFriends: nextHidden, friendList: nextList });
     });
   });
   return button;
@@ -169,6 +172,7 @@ function renderFriendsSection(container) {
       <label><input type="checkbox" class="show-hidden" ${showHiddenFriends ? 'checked' : ''} /> Show hidden (${Object.keys(hiddenFriends).length})</label>
       <button class="clear-friends">Clear friends</button>
     </div>
+    <div class="missing-details"></div>
     <div class="friend-picker"></div>
     <div class="friend-list"></div>`;
   container.querySelector('.show-all').addEventListener('change', event => {
@@ -180,6 +184,23 @@ function renderFriendsSection(container) {
     renderFriendsSection(container);
   });
   container.querySelector('.clear-friends').addEventListener('click', () => chrome.storage.local.remove('friends'));
+
+  // Friends from the friend list pages whose Details hasn't been opened yet, so the player can go open them.
+  const missingDetails = findMissingDetails(friendList, friends);
+  if (missingDetails.length) {
+    const block = container.querySelector('.missing-details');
+    // Gebe only sees the tab DevTools is open on, so a link opening a new tab wouldn't capture anything.
+    const missingCount = missingDetails.reduce((sum, { friends: missing }) => sum + missing.length, 0);
+    block.innerHTML = `<h4>Details missing (${missingCount} of ${Object.keys(friendList).length} listed)</h4>
+      <div class="friend-meta">Open each one's Details from that friend list page, in this tab.</div>`;
+    for (const { page, friends: missing } of missingDetails) {
+      const row = document.createElement('div');
+      row.className = 'friend-row';
+      row.append(`Page ${page}:`);
+      for (const { userId, name } of missing) row.append(name ?? userId, deleteButton(userId));
+      block.appendChild(row);
+    }
+  }
 
   // Watch-list picker: click a summon to toggle whether friends missing it get flagged.
   const picker = container.querySelector('.friend-picker');
@@ -325,8 +346,9 @@ function render() {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'watchedSummons', 'summonMinLevels', 'hiddenFriends'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'watchedSummons', 'summonMinLevels', 'hiddenFriends'], data => {
     friends = data.friends || {};
+    friendList = data.friendList || {};
     hiddenFriends = data.hiddenFriends || {};
     watchedSummons = data.watchedSummons || [];
     summonMinLevels = data.summonMinLevels || {};
@@ -341,10 +363,11 @@ chrome.storage.onChanged.addListener(changes => {
   for (const key of ITEM_KEYS) if (changes[key]) items[key] = changes[key].newValue || {};
   if (ITEM_KEYS.some(key => changes[key])) render();
   if (changes.friends) friends = changes.friends.newValue || {};
+  if (changes.friendList) friendList = changes.friendList.newValue || {};
   if (changes.watchedSummons) watchedSummons = changes.watchedSummons.newValue || [];
   if (changes.summonMinLevels) summonMinLevels = changes.summonMinLevels.newValue || {};
   if (changes.hiddenFriends) hiddenFriends = changes.hiddenFriends.newValue || {};
-  if (changes.friends || changes.watchedSummons || changes.summonMinLevels || changes.hiddenFriends) renderFriendsSection(document.getElementById('friends-section'));
+  if (changes.friends || changes.friendList || changes.watchedSummons || changes.summonMinLevels || changes.hiddenFriends) renderFriendsSection(document.getElementById('friends-section'));
   if (changes.friends) renderStatsSection(document.getElementById('stats-section'));
 });
 

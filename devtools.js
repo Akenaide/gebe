@@ -3,8 +3,8 @@ import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory
 import { extractItems } from './src/itemStats.js';
 
 let writeQueue = Promise.resolve();
-// Names from the friend list pages seen this session, for the Details pages opened from them.
-let friendNames = {};
+// Friends from the friend list pages seen this session, for the names of the Details pages opened from them.
+let listedFriends = {};
 
 // Every storage read-modify-write goes through this one chain, since GBF fires concurrent requests.
 function enqueueUpdate(key, update) {
@@ -37,9 +37,15 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
       const supporters = parseSupporters(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
     }
-    if (capture.url.includes('/friend/friend_list/')) friendNames = { ...friendNames, ...parseFriendList(capture) };
+    if (capture.url.includes('/friend/friend_list/')) {
+      const listed = parseFriendList(capture);
+      listedFriends = { ...listedFriends, ...listed };
+      // The list is paged, so each page adds to the stored one.
+      enqueueUpdate('friendList', friendList => ({ ...friendList, ...listed }));
+    }
     if (capture.url.includes('/friend/friend_fixed_summon/')) {
-      const supporters = parseFixedSummons(capture).map(support => ({ ...support, name: friendNames[support.userId] }));
+      // shortcut: a Details with no supports set merges nothing, so that friend stays "Details missing"; mark it from the URL if it shows up.
+      const supporters = parseFixedSummons(capture).map(support => ({ ...support, name: listedFriends[support.userId]?.name }));
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now(), { fromDetails: true }));
     }
   });

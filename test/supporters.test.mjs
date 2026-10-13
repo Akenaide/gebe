@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats } from '../src/supporters.js';
+import { parseSupporters, parseFixedSummons, parseFriendList, findMissingDetails, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats } from '../src/supporters.js';
 
 // Same shape as a real /quest/content/supporter_raid/ block, trimmed to the fields we read.
 function supporterBlock({ userId, name, summonId, summonName, level = 150, slot = 0, friend = true }) {
@@ -309,22 +309,25 @@ test('mergeFriendHistory keeps the stored name when the support has none', () =>
   assert.strictEqual(mergeFriendHistory(friends, details, 2, { fromDetails: true })[userId].name, name);
 });
 
-test('parseFriendList maps each listed friend\'s id to their name', () => {
+test('parseFriendList maps each listed friend\'s id to their name and friend list page', () => {
   /**
-   * Given a friend_list page listing ゆず (10733230) and Haaselia (11279725),
+   * Given page 3 of the friend list, listing ゆず (10733230) and Haaselia (11279725),
    * When parseFriendList is called on it,
-   * Then it returns {10733230: 'ゆず', 11279725: 'Haaselia'}, keyed by the same id as supporter pages.
+   * Then it returns each friend's name and page 3, keyed by the same id as supporter pages.
    */
+  const page = 3;
   const capture = {
-    url: 'https://game.granbluefantasy.jp/friend/friend_list/1?_=1791915437329&t=1791915437757&uid=26271737',
+    url: 'https://game.granbluefantasy.jp/friend/friend_list/3?_=1791915437329&t=1791915437757&uid=26271737',
     responseBody: JSON.stringify({
       list: [
         { id: '10733230', viewer_id: '132354087', name: 'ゆず' },
         { id: '11279725', viewer_id: '133459402', name: 'Haaselia' },
       ],
+      current: page,
+      count: 88,
     }),
   };
-  assert.deepStrictEqual(parseFriendList(capture), { 10733230: 'ゆず', 11279725: 'Haaselia' });
+  assert.deepStrictEqual(parseFriendList(capture), { 10733230: { name: 'ゆず', page }, 11279725: { name: 'Haaselia', page } });
 });
 
 test('mergeFriendHistory adds a friend first seen through their Details without a sighting', () => {
@@ -359,4 +362,51 @@ test('countSupportStats lists which friends offer each summon, by level', () => 
       { id: BAHAMUT, friendCount: 1, levels: { 150: ['2'] } },
     ],
   });
+});
+
+test('mergeFriendHistory marks when a friend\'s Details was seen', () => {
+  /**
+   * Given an empty friends store,
+   * When a Details capture taken at time 2 is merged,
+   * Then the friend's detailsSeenAt is 2.
+   */
+  const userId = '1358003';
+  const seenAt = 2;
+  const details = [{ userId, name: 'hez', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 }];
+  assert.strictEqual(mergeFriendHistory({}, details, seenAt, { fromDetails: true })[userId].detailsSeenAt, seenAt);
+});
+
+test('findMissingDetails groups friends whose Details was never seen by friend list page', () => {
+  /**
+   * Given a friend list with ゆず (page 1, Details seen), hez (page 3, seen only on a supporter page)
+   * and Haaselia (page 1, not tracked yet),
+   * When findMissingDetails is called,
+   * Then it returns page 1 with Haaselia, then page 3 with hez.
+   */
+  const friendList = {
+    10733230: { name: 'ゆず', page: 1 },
+    1358003: { name: 'hez', page: 3 },
+    11279725: { name: 'Haaselia', page: 1 },
+  };
+  const friends = {
+    10733230: { name: 'ゆず', detailsSeenAt: 2 },
+    1358003: { name: 'hez', sightings: 1 },
+  };
+  assert.deepStrictEqual(findMissingDetails(friendList, friends), [
+    { page: 1, friends: [{ userId: '11279725', name: 'Haaselia' }] },
+    { page: 3, friends: [{ userId: '1358003', name: 'hez' }] },
+  ]);
+});
+
+test('mergeFriendHistory keeps the Details mark through a later sighting', () => {
+  /**
+   * Given a friend whose Details was seen at time 2,
+   * When a supporter page showing them is merged at time 3,
+   * Then detailsSeenAt is still 2.
+   */
+  const userId = '1358003';
+  const detailsSeenAt = 2;
+  const friends = { [userId]: { name: 'hez', seenSummons: {}, bestLevels: {}, layout: {}, sightings: 0, detailsSeenAt } };
+  const sighting = [{ userId, name: 'hez', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 }];
+  assert.strictEqual(mergeFriendHistory(friends, sighting, 3)[userId].detailsSeenAt, detailsSeenAt);
 });

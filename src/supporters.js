@@ -45,6 +45,8 @@ export function mergeFriendHistory(friends, supporters, seenAt, { fromDetails = 
         sightings: (known?.sightings ?? 0) + (fromDetails ? 0 : 1),
         lastSeen: fromDetails ? known?.lastSeen : seenAt,
       };
+      const detailsSeenAt = fromDetails ? seenAt : known?.detailsSeenAt;
+      if (detailsSeenAt) merged[userId].detailsSeenAt = detailsSeenAt;
     }
     merged[userId].seenSummons[summonId] = summonName;
     merged[userId].bestLevels[summonId] = Math.max(merged[userId].bestLevels[summonId] ?? 0, level);
@@ -88,8 +90,10 @@ export function parseFixedSummons(capture) {
 }
 
 // Details has no friend name, so it's taken from the friend list page the player opened it from.
+// The page tells the player where to find a friend whose Details is missing.
 export function parseFriendList(capture) {
-  return Object.fromEntries(JSON.parse(capture.responseBody).list.map(({ id, name }) => [id, name]));
+  const { list, current: page } = JSON.parse(capture.responseBody);
+  return Object.fromEntries(list.map(({ id, name }) => [id, { name, page }]));
 }
 
 // From each friend's current layout; friends saved before layouts were tracked aren't counted.
@@ -107,4 +111,14 @@ export function countSupportStats(friends) {
     }
   }
   return { friendCount: withLayout.length, summons: Object.values(stats).sort((a, b) => b.friendCount - a.friendCount) };
+}
+
+// Friends from the friend list pages whose Details Gebe hasn't seen yet, grouped by the page they're on.
+export function findMissingDetails(friendList, friends) {
+  const pages = {};
+  for (const [userId, { name, page }] of Object.entries(friendList)) {
+    if (!friends[userId]?.detailsSeenAt) (pages[page] ??= []).push({ userId, name });
+  }
+  // Integer keys iterate in ascending order, so pages come out sorted.
+  return Object.entries(pages).map(([page, missing]) => ({ page: Number(page), friends: missing }));
 }
