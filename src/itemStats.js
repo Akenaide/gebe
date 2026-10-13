@@ -1,3 +1,4 @@
+// Hardcoded rather than read from the response's own `sort` map, which isn't trusted as the source of truth.
 const ATTRIBUTE_NAMES = { 1: 'Fire', 2: 'Water', 3: 'Earth', 4: 'Wind', 5: 'Light', 6: 'Dark' };
 
 export function countCrateDuplicates(crate, itemKindId) {
@@ -20,6 +21,7 @@ export function countCrateDuplicates(crate, itemKindId) {
   return [...counts.values()].sort((a, b) => b.count - a.count);
 }
 
+// Uncapped copies stay listed one by one: most uncap stars come from resource items, not fed duplicates, so a summed total misleads.
 export function countInventoryDuplicates(owned) {
   const groups = new Map();
   for (const [copyId, { master_id, evolution }] of Object.entries(owned)) {
@@ -34,6 +36,7 @@ export function countInventoryDuplicates(owned) {
   return [...groups.values()];
 }
 
+// Keeps every summon, not only per-source duplicates: 2 in the crate + 1 owned is still a duplicate.
 export function combineDuplicateSections(crateDupes, inventoryDupes) {
   const rows = new Map();
   for (const c of crateDupes) {
@@ -84,6 +87,7 @@ export function extractItems(capture) {
     const owned = {};
     for (const item of list) {
       if (item.master.rarity !== '4') continue;
+      // param.id is the owned copy; master.id shares the crate's regular_id id space, which is what lets the two merge.
       owned[item.param.id] = { master_id: item.master.id, evolution: Number(item.param.evolution) || 0 };
     }
     return { [ownedKey]: owned };

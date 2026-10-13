@@ -2,6 +2,8 @@
 
 A DevTools panel that watches Granblue Fantasy's game traffic to count duplicate summons and weapons, and to track friends' supports.
 
+Field names copied from the game's API (`evolution`, `fixed_summon`…) keep the game's naming.
+
 ## Capturing
 
 **Capture**:
@@ -28,13 +30,25 @@ _Avoid_: Dupe, copy
 
 **Uncap**:
 How far an owned copy has been upgraded, counted in stars (0★ is a plain copy).
-_Avoid_: Evolution, level
+_Avoid_: Evolution
 
 ## Friends
 
 **Support**:
 A summon a friend has set out for other players to borrow.
 _Avoid_: Supporter summon, friend summon
+
+**Supporter page**:
+The game's page listing supports to borrow before a battle, where Gebe sees friends' supports.
+_Avoid_: Support list, raid page
+
+**Layout**:
+All of a friend's supports, slot by slot.
+_Avoid_: Setup, loadout
+
+**Level**:
+A support's summon level, as shown on a supporter page or Details. It is unrelated to uncap.
+_Avoid_: Rank
 
 **Slot**:
 The place a support occupies in the friend's support layout, given as an element tab and a row. It is unrelated to the summon's own element.

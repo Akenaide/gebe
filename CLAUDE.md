@@ -1,43 +1,37 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## What this is
-
-A Chrome (Manifest V3) DevTools extension that watches Granblue Fantasy's (`game.granbluefantasy.jp`) network traffic and surfaces duplicate-summon counts. It adds a "Gebe" panel next to Elements/Console/Network in DevTools.
-
-No `package.json`, no npm dependencies, no build step. Everything is plain ESM JavaScript run directly by the browser (extension files) or Node (tests).
+A Chrome (Manifest V3) DevTools extension: a "Gebe" panel that watches Granblue Fantasy's (`game.granbluefantasy.jp`) traffic to count duplicate summons and weapons and track friends' supports. Plain ESM, no `package.json`, no build step.
 
 Use the terms in `GLOSSARY.md` (capture, crate, support…) in code, UI and replies.
 
 ## Commands
 
-- Run all tests: `node --test test/*.test.mjs`
-- Run one test file: `node --test test/itemStats.test.mjs`
-- Syntax-check a file without running it: `node --check <file>`
-- Load the extension: `chrome://extensions` → enable Developer mode → "Load unpacked" → select this directory.
+- Tests: `node --test test/*.test.mjs`
+- Load: `chrome://extensions` → Developer mode → "Load unpacked" → this directory.
+- After any code change: reload the extension **and** fully close and reopen DevTools on the game tab. A reload alone can leave an open panel running stale JS.
 - Release: bump `version` in `manifest.json` in its own commit, `Bump version to X.Y`.
-- After any code change: reload the extension on `chrome://extensions`, **and** fully close and reopen DevTools on the target tab. Reloading the extension alone does not reliably refresh an already-open DevTools panel — it can keep running stale JS until DevTools itself is closed and reopened.
 
-There is no way to inspect the DevTools panel's own DOM/state programmatically (it isn't a regular tab) — debugging it means either reasoning from the pure functions in `src/` directly (feed them real captured data), or asking the user to check the panel and/or export `captures.json` via the panel's own "Export JSON" button.
+## Verifying
+
+Only the pure functions in `src/` have tests. The panel isn't a regular tab, so its DOM and state can't be inspected programmatically. Check a change by feeding real captured data to `src/`, or by asking the user to look at the panel or export `captures.json` with its "Export JSON" button.
+
+`sample/` holds real API responses (gitignored: it's the user's account data, never commit it). Check a response's shape there before writing code against it.
 
 ## Architecture
 
-**Capture side** (`devtools.js`, loaded via `devtools.html` as the `devtools_page`): listens to `chrome.devtools.network.onRequestFinished`, which only fires while DevTools is open on that tab (same limitation as the Network tab). It skips any request not on `game.granbluefantasy.jp` (`src/capture.js`'s `shouldCapture`). For each remaining request it builds a capture (request + response body) and stores only what the panel needs: `extractItems` turns present/summon/weapon list responses into the `crate`, `ownedSummons` and `ownedWeapons` keys (objects keyed by present id / owned-copy id, merged in, so a re-fetched page overwrites rather than double-counts), and supporter pages and friends' Details update `friends`. The raw capture is appended to the `captures` key only while capturing is on (the panel's Start/Stop capturing button flips the `capturing` storage key, reset to off every time DevTools opens) — saving every raw capture rewrote an ever-growing list on each request and slowed the game. Writes are serialized through a single promise chain, since GBF fires several concurrent requests and a naive read-modify-write can race and drop data. Storage isn't size-capped in code — the manifest requests `unlimitedStorage` instead.
+- `devtools.js` (the `devtools_page`) captures game requests via `chrome.devtools.network.onRequestFinished`, which only fires while DevTools is open on that tab. It reduces each capture to the storage keys below; raw captures are saved only while capturing is on. Every storage write goes through one promise chain, since GBF fires concurrent requests.
+- `panel.js` renders the storage keys and re-renders on `chrome.storage.onChanged`.
+- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports.
 
-**Display side** (`panel.html`/`panel.js`/`panel.css`, the actual panel tab `chrome.devtools.panels.create` registers): reads `crate`/`ownedSummons`/`ownedWeapons`/`friends` from storage, re-renders on `chrome.storage.onChanged`, and offers Start/Stop capturing, Export JSON (raw `captures`), Import JSON (runs a captures export through `extractItems` — it doesn't restore raw captures) and Clear (items and captures, not friends).
+## Storage keys
 
-**Pure aggregation logic** lives in `src/` and is unit-tested with `node:test` — this is the only code covered by automated tests; everything DOM/`chrome.*`-related is verified manually per the note above.
+| Key | Written by | Wiped by |
+|---|---|---|
+| `crate`, `ownedSummons`, `ownedWeapons` | `devtools.js`, Import JSON | Clear |
+| `captures` (raw, only while capturing) | `devtools.js` | Clear |
+| `capturing` | panel's Start/Stop; reset to off each time DevTools opens | — |
+| `friends` | `devtools.js` (supporter pages, Details) | Clear friends, per-friend delete |
+| `hiddenFriends` (`{userId: note}`) | panel | per-friend delete |
+| `watchedSummons`, `summonMinLevels` | panel | — |
 
-- `src/itemStats.js` — the core domain logic. Two API shapes are stored separately because they don't share fields, then merged:
-  - `extractItems(capture)` — routes by URL and keeps only SS Rare (`rarity === '4'`) items. From `/present/list/{cat}/{sub}/{page}` (the "crate": unclaimed presents), items are flat `{id, item_kind_id, regular_id, item_name, rarity, attribute}` → `{crate: {id: {item_kind_id, regular_id, item_name, attribute}}}`. From `/summon/list/` and `/weapon/list/` (the real owned collection), a completely different shape `{param: {id, evolution, ...}, master: {id, rarity, ...}}` with no `item_kind_id`/`regular_id`/`item_name`/`attribute` → `{ownedSummons|ownedWeapons: {param.id: {master_id, evolution}}}`. `param.id` is the unique owned-copy id; `master.id` is "which summon" and lives in the *same numeric id space* as `regular_id`/the CDN image id (e.g. `2040158000`) — that's what lets the two shapes be merged later. Any other URL or unparseable body → `{}`.
-  - `countCrateDuplicates(crate, itemKindId)` — counts crate items per `regular_id`. `attribute` (a numeric code) is resolved to a name via the hardcoded `ATTRIBUTE_NAMES` table — deliberately *not* via the response's own `sort` map, since that shouldn't be trusted as the source of truth.
-  - `countInventoryDuplicates(owned)` — splits each summon's owned copies into `zeroStarCount` (plain 0★ spares, tallied as a count) and `nonZeroStars` (each already-uncapped copy listed individually with its own star level, not folded into a number) — a deliberate design choice from user feedback, since folding uncap stars into a single weighted total misrepresented the data (most uncap stars come from resource items, not from feeding a duplicate).
-  - `combineDuplicateSections(crateDupes, inventoryDupes)` — merges both by numeric id into one row per summon: `{id, item_name, attribute_name, crateCount, zeroStarCount, nonZeroStars}`. Shows *every* summon seen (not just ones exceeding some duplicate threshold — an earlier per-source `>1` filter was explicitly removed because it could hide a real combined duplicate, e.g. 2 unclaimed + 1 owned). `item_name`/`attribute_name` are `null` for inventory-only rows, since that endpoint has no such fields. Sorted ascending by name, falling back to id-as-text when there's no name.
-- `src/supporters.js` — friend-support tracking from `/quest/content/supporter_raid/` responses, which are `{data: "<URL-encoded HTML>"}`, not JSON lists. `parseSupporters` regex-parses the `btn-supporter` blocks (friends only: `prt-supporter-name ico-friend`; uncapped art ids like `2040056000_04` are cut to the bare summon id). `mergeFriendHistory` folds one capture into the `friends` store (`{userId: {name, seenSummons: {id: name}, bestLevels: {id: highestLvl}, layout: {slot: {id, level}}, sightings, lastSeen}}`, one sighting per capture; friends saved before levels/layouts existed lack those fields). A support's `slot` is the block's `data-attribute` = row × 10 + element tab (0 Misc, 1 Fire … 6 Dark) — the tab it's slotted in, *not* the summon's own element (Lucifer can sit in any tab). A capture doesn't always show every slot, so `layout` is overwritten slot by slot. A friend's Details (`/friend/friend_fixed_summon/{userId}`, JSON) lists every slot: `parseFixedSummons` turns its filled slots into the same records (`attribute_key` is the same slot code, `master_id` the bare summon id), and `mergeFriendHistory(..., {fromDetails: true})` then replaces the whole `layout` and leaves `sightings`/`lastSeen` alone — a friend first met there has 0 sightings and no `lastSeen`. Details has no name: `parseFriendList` reads `{id: name}` from `/friend/friend_list/{page}` (its `id` is the same user id as supporter pages; ignore `viewer_id`), kept only in memory in `devtools.js` (`friendNames`), so a name reaches Details only if DevTools was open when that friend list page loaded. `groupLayout` turns a layout into the game's tab order (Fire … Dark, Misc). `countSupportStats(friends)` feeds the panel's Stats tab: per summon, which friends offer it in their current `layout`, grouped by level (`levels: {level: [userId]}`, once per friend at its highest level there) out of the friends that have a layout. `findMissingSummons(friends, watchedIds, minLevels)` flags friends missing a watched summon, or whose best level is below its optional minimum (the `summonMinLevels` storage key); an unknown level never meets a minimum. `devtools.js` updates `friends` at capture time through the same write chain, so it survives "Clear" (it has its own "Clear friends"); the watch list is the `watchedSummons` key, and friends ticked "hide" (with a note) live in `hiddenFriends: {userId: note}`, also untouched by "Clear friends". Each friend row also has a "delete" button (for a friend just unfriended) that removes them from both `friends` and `hiddenFriends`.
-
-## Reference data
-
-`sample/` (gitignored — contains the user's real account data, never commit it) holds real captured API responses used to verify assumptions about response shape before writing code against them: `present.json` (crate), `inventory-summon.json` (inventory), and ad-hoc exports like `captures-bug-1.json`/`bug1.json` used while debugging specific reported issues. When investigating a shape question, check here before guessing.
-
-`plans/` holds the original implementation plan (TDD-style, written via the `spec`/`grilling` skill flow) — useful context for *why* the architecture looks the way it does.
+Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Import JSON runs an export through `extractItems`; it doesn't restore raw captures. Storage isn't capped in code: the manifest requests `unlimitedStorage`.
