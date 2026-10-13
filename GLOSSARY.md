@@ -41,8 +41,12 @@ The place a support occupies in the friend's support layout, given as an element
 _Avoid_: Position, tab
 
 **Sighting**:
-One time Gebe saw a friend's supports.
+One time Gebe saw a friend's supports on a supporter page. Opening their Details is not a sighting.
 _Avoid_: Visit, view
+
+**Details**:
+A friend's page reached from the friend list, showing every slot of their supports, empty ones included.
+_Avoid_: Profile, fixed summons
 
 **Watched summon**:
 A summon the player expects friends to offer as a support, optionally with a minimum level.

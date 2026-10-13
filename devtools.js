@@ -1,8 +1,10 @@
 import { shouldCapture } from './src/capture.js';
-import { parseSupporters, mergeFriendHistory } from './src/supporters.js';
+import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory } from './src/supporters.js';
 import { extractItems } from './src/itemStats.js';
 
 let writeQueue = Promise.resolve();
+// Names from the friend list pages seen this session, for the Details pages opened from them.
+let friendNames = {};
 
 // Every storage read-modify-write goes through this one chain, since GBF fires concurrent requests.
 function enqueueUpdate(key, update) {
@@ -34,6 +36,11 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     if (capture.url.includes('/quest/content/supporter_raid/')) {
       const supporters = parseSupporters(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
+    }
+    if (capture.url.includes('/friend/friend_list/')) friendNames = { ...friendNames, ...parseFriendList(capture) };
+    if (capture.url.includes('/friend/friend_fixed_summon/')) {
+      const supporters = parseFixedSummons(capture).map(support => ({ ...support, name: friendNames[support.userId] }));
+      if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now(), { fromDetails: true }));
     }
   });
 });

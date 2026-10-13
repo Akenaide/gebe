@@ -26,7 +26,8 @@ export function parseSupporters(capture) {
   return supporters;
 }
 
-export function mergeFriendHistory(friends, supporters, seenAt) {
+// fromDetails: the friend's Details page, which lists every slot.
+export function mergeFriendHistory(friends, supporters, seenAt, { fromDetails = false } = {}) {
   const merged = { ...friends };
   const updated = new Set();
   for (const { userId, name, summonId, summonName, level, slot } of supporters) {
@@ -35,14 +36,14 @@ export function mergeFriendHistory(friends, supporters, seenAt) {
       updated.add(userId);
       const known = friends[userId];
       merged[userId] = {
-        name,
+        name: name ?? known?.name,
         seenSummons: { ...known?.seenSummons },
         // Records saved before levels were tracked have no bestLevels.
         bestLevels: { ...known?.bestLevels },
-        // A capture doesn't always show every slot, so unseen slots keep their last known summon.
-        layout: { ...known?.layout },
-        sightings: (known?.sightings ?? 0) + 1,
-        lastSeen: seenAt,
+        // A supporter page doesn't always show every slot, so unseen slots keep their last known summon.
+        layout: fromDetails ? {} : { ...known?.layout },
+        sightings: (known?.sightings ?? 0) + (fromDetails ? 0 : 1),
+        lastSeen: fromDetails ? known?.lastSeen : seenAt,
       };
     }
     merged[userId].seenSummons[summonId] = summonName;
@@ -69,4 +70,24 @@ export function groupLayout(layout) {
     element,
     slots: slots.filter(slot => slot % 10 === code).map(slot => layout[slot]),
   }));
+}
+
+// A friend's Details: {fixed_summon_list: [[{fixed_summon_info, fix_status}]]}, one list per element tab.
+export function parseFixedSummons(capture) {
+  const userId = new URL(capture.url).pathname.split('/').pop();
+  return JSON.parse(capture.responseBody).fixed_summon_list.flat()
+    .filter(({ fix_status }) => fix_status === 1)
+    .map(({ fixed_summon_info: info }) => ({
+      userId,
+      summonId: info.master_id,
+      summonName: info.name,
+      level: Number(info.level),
+      // Same row * 10 + element tab code as a supporter page's data-attribute.
+      slot: info.attribute_key,
+    }));
+}
+
+// Details has no friend name, so it's taken from the friend list page the player opened it from.
+export function parseFriendList(capture) {
+  return Object.fromEntries(JSON.parse(capture.responseBody).list.map(({ id, name }) => [id, name]));
 }

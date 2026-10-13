@@ -209,10 +209,11 @@ function renderFriendsSection(container) {
     link.href = `https://game.granbluefantasy.jp/#profile/${row.userId}`;
     link.target = '_blank';
     link.rel = 'noopener';
-    link.textContent = row.name;
+    link.textContent = row.name ?? row.userId;
     const meta = document.createElement('span');
     meta.className = 'friend-meta';
-    meta.textContent = `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}`;
+    // A friend only seen through their Details has no sighting yet.
+    meta.textContent = row.lastSeen ? `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}` : 'seen only in Details';
     el.append(link, meta, hideControls(row.userId));
     if (row.missing?.length) {
       const label = document.createElement('span');

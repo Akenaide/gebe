@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseSupporters, mergeFriendHistory, findMissingSummons, groupLayout } from '../src/supporters.js';
+import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory, findMissingSummons, groupLayout } from '../src/supporters.js';
 
 // Same shape as a real /quest/content/supporter_raid/ block, trimmed to the fields we read.
 function supporterBlock({ userId, name, summonId, summonName, level = 150, slot = 0, friend = true }) {
@@ -235,4 +235,106 @@ test('groupLayout groups slots by element tab in game order, rows sorted', () =>
     { element: 'Dark', slots: [] },
     { element: 'Misc', slots: [kaguya] },
   ]);
+});
+
+// Same shape as a real /friend/friend_fixed_summon/{userId} entry, trimmed to the fields we read.
+function fixedSummon({ masterId = null, name = null, level = null, slot }) {
+  return { fixed_summon_info: { master_id: masterId, name, level, attribute_key: slot }, fix_status: masterId ? 1 : 0 };
+}
+
+test('parseFixedSummons returns one record per filled slot of a friend\'s Details', () => {
+  /**
+   * Given a friend_fixed_summon capture for friend 1358003 holding Lucifer Lvl 250 in slot 30,
+   * Agni Lvl 250 in slot 11 and an empty slot 21,
+   * When parseFixedSummons is called on it,
+   * Then it returns the two filled slots with the friend's id from the URL, and skips the empty one.
+   */
+  const userId = '1358003';
+  const capture = {
+    url: `https://game.granbluefantasy.jp/friend/friend_fixed_summon/${userId}?_=1791847047336&t=1791847490243&uid=26271737`,
+    responseBody: JSON.stringify({
+      fixed_summon_list: [
+        [fixedSummon({ masterId: '2040056000', name: 'Lucifer', level: '250', slot: 30 })],
+        [fixedSummon({ masterId: '2040094000', name: 'Agni', level: '250', slot: 11 }), fixedSummon({ slot: 21 })],
+      ],
+    }),
+  };
+  assert.deepStrictEqual(parseFixedSummons(capture), [
+    { userId, summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 },
+    { userId, summonId: '2040094000', summonName: 'Agni', level: 250, slot: 11 },
+  ]);
+});
+
+test('mergeFriendHistory replaces the whole layout with a friend\'s Details', () => {
+  /**
+   * Given a friend whose known layout is Hades Lvl 230 in slot 6 and Lucifer Lvl 250 in slot 15,
+   * When a Details capture is merged showing only Hades Lvl 250 in slot 6 (slot 15 is empty there),
+   * Then the layout is just slot 6 with Hades Lvl 250 — Details shows every slot, so slot 15 was emptied.
+   */
+  const userId = '10733230';
+  const hades = { id: '2040090000', level: 250 };
+  const friends = {
+    [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: { 6: { id: hades.id, level: 230 }, 15: { id: '2040056000', level: 250 } }, sightings: 1, lastSeen: 1 },
+  };
+  const details = [{ userId, summonId: hades.id, summonName: 'Hades', level: hades.level, slot: 6 }];
+  const result = mergeFriendHistory(friends, details, 2, { fromDetails: true });
+  assert.deepStrictEqual(result[userId].layout, { 6: hades });
+});
+
+test('mergeFriendHistory does not count a friend\'s Details as a sighting', () => {
+  /**
+   * Given a friend seen 3 times, last at time 1,
+   * When a Details capture taken at time 2 is merged,
+   * Then sightings stays 3 and lastSeen stays 1 — sightings count supporter pages only.
+   */
+  const userId = '10733230';
+  const sightings = 3;
+  const lastSeen = 1;
+  const friends = { [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: {}, sightings, lastSeen } };
+  const details = [{ userId, summonId: '2040090000', summonName: 'Hades', level: 250, slot: 6 }];
+  const result = mergeFriendHistory(friends, details, 2, { fromDetails: true });
+  assert.deepStrictEqual([result[userId].sightings, result[userId].lastSeen], [sightings, lastSeen]);
+});
+
+test('mergeFriendHistory keeps the stored name when the support has none', () => {
+  /**
+   * Given a friend stored as ゆず,
+   * When a Details capture is merged whose records carry no name (that response has none),
+   * Then the friend is still named ゆず.
+   */
+  const userId = '10733230';
+  const name = 'ゆず';
+  const friends = { [userId]: { name, seenSummons: {}, bestLevels: {}, layout: {}, sightings: 1, lastSeen: 1 } };
+  const details = [{ userId, summonId: '2040090000', summonName: 'Hades', level: 250, slot: 6 }];
+  assert.strictEqual(mergeFriendHistory(friends, details, 2, { fromDetails: true })[userId].name, name);
+});
+
+test('parseFriendList maps each listed friend\'s id to their name', () => {
+  /**
+   * Given a friend_list page listing ゆず (10733230) and Haaselia (11279725),
+   * When parseFriendList is called on it,
+   * Then it returns {10733230: 'ゆず', 11279725: 'Haaselia'}, keyed by the same id as supporter pages.
+   */
+  const capture = {
+    url: 'https://game.granbluefantasy.jp/friend/friend_list/1?_=1791915437329&t=1791915437757&uid=26271737',
+    responseBody: JSON.stringify({
+      list: [
+        { id: '10733230', viewer_id: '132354087', name: 'ゆず' },
+        { id: '11279725', viewer_id: '133459402', name: 'Haaselia' },
+      ],
+    }),
+  };
+  assert.deepStrictEqual(parseFriendList(capture), { 10733230: 'ゆず', 11279725: 'Haaselia' });
+});
+
+test('mergeFriendHistory adds a friend first seen through their Details without a sighting', () => {
+  /**
+   * Given an empty friends store,
+   * When a Details capture for hez (named from the friend list) is merged,
+   * Then hez is added with 0 sightings and no lastSeen, since no supporter page has shown them yet.
+   */
+  const userId = '1358003';
+  const details = [{ userId, name: 'hez', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 }];
+  const friend = mergeFriendHistory({}, details, 2, { fromDetails: true })[userId];
+  assert.deepStrictEqual([friend.name, friend.sightings, friend.lastSeen], ['hez', 0, undefined]);
 });
