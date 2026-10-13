@@ -141,6 +141,22 @@ function hideControls(userId) {
   return wrap;
 }
 
+// For a friend just unfriended in game; their hide note goes too, since there's nothing left to hide.
+function deleteButton(userId) {
+  const button = document.createElement('button');
+  button.textContent = 'delete';
+  button.addEventListener('click', () => {
+    chrome.storage.local.get(['friends', 'hiddenFriends'], data => {
+      const nextFriends = { ...data.friends };
+      const nextHidden = { ...data.hiddenFriends };
+      delete nextFriends[userId];
+      delete nextHidden[userId];
+      chrome.storage.local.set({ friends: nextFriends, hiddenFriends: nextHidden });
+    });
+  });
+  return button;
+}
+
 function renderFriendsSection(container) {
   const allSummons = {};
   for (const friend of Object.values(friends)) Object.assign(allSummons, friend.seenSummons);
@@ -214,7 +230,7 @@ function renderFriendsSection(container) {
     meta.className = 'friend-meta';
     // A friend only seen through their Details has no sighting yet.
     meta.textContent = row.lastSeen ? `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}` : 'seen only in Details';
-    el.append(link, meta, hideControls(row.userId));
+    el.append(link, meta, hideControls(row.userId), deleteButton(row.userId));
     if (row.missing?.length) {
       const label = document.createElement('span');
       label.className = 'friend-meta';
