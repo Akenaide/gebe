@@ -1,5 +1,5 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections, extractItems } from './src/itemStats.js';
-import { findMissingSummons, groupLayout } from './src/supporters.js';
+import { countSupportStats, findMissingSummons, groupLayout } from './src/supporters.js';
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
 
@@ -244,6 +244,72 @@ function renderFriendsSection(container) {
   }
 }
 
+// How many friends offer each support right now, from their current layouts.
+let statsSort = { key: 'friends', descending: true };
+let statsPick = null; // {id, level}: the level clicked to list who offers it
+
+function renderStatsSection(container) {
+  const allSummons = {};
+  for (const friend of Object.values(friends)) Object.assign(allSummons, friend.seenSummons);
+  const nameOf = id => allSummons[id] ?? id;
+  const { friendCount, summons } = countSupportStats(friends);
+  const sortValue = { friends: row => row.friendCount, name: row => nameOf(row.id) };
+  const value = sortValue[statsSort.key];
+  summons.sort((a, b) => {
+    const [x, y] = [value(a), value(b)];
+    const order = typeof x === 'number' ? x - y : x.localeCompare(y);
+    return statsSort.descending ? -order : order;
+  });
+
+  container.innerHTML = `<h3>Supports across ${friendCount} friends with a layout</h3><table class="stats-table"></table>`;
+  const table = container.querySelector('table');
+  const header = table.createTHead().insertRow();
+  for (const [key, label] of [[null, ''], ['name', 'Summon'], ['friends', 'Friends'], [null, 'Levels (click one to see who)']]) {
+    const th = document.createElement('th');
+    th.textContent = label + (key === statsSort.key ? (statsSort.descending ? ' ▼' : ' ▲') : '');
+    if (key) {
+      th.className = 'sortable';
+      th.addEventListener('click', () => {
+        statsSort = { key, descending: key === statsSort.key ? !statsSort.descending : key === 'friends' };
+        renderStatsSection(container);
+      });
+    }
+    header.appendChild(th);
+  }
+
+  const body = table.createTBody();
+  for (const { id, friendCount: offeredBy, levels } of summons) {
+    const tr = body.insertRow();
+    tr.insertCell().appendChild(summonThumb(id, nameOf(id)));
+    tr.insertCell().textContent = nameOf(id);
+    tr.insertCell().textContent = `${offeredBy} (${Math.round((offeredBy / friendCount) * 100)}%)`;
+    const levelCell = tr.insertCell();
+    for (const [level, userIds] of Object.entries(levels).sort((a, b) => b[0] - a[0])) {
+      const picked = statsPick?.id === id && statsPick.level === level;
+      const button = document.createElement('button');
+      button.className = picked ? 'filter-btn active' : 'filter-btn';
+      button.textContent = `Lvl ${level} ×${userIds.length}`;
+      button.addEventListener('click', () => {
+        statsPick = picked ? null : { id, level };
+        renderStatsSection(container);
+      });
+      levelCell.appendChild(button);
+      if (!picked) continue;
+      const whoCell = body.insertRow().insertCell();
+      whoCell.colSpan = 4;
+      whoCell.className = 'stats-who';
+      for (const userId of userIds) {
+        const link = document.createElement('a');
+        link.href = `https://game.granbluefantasy.jp/#profile/${userId}`;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = friends[userId].name ?? userId;
+        whoCell.appendChild(link);
+      }
+    }
+  }
+}
+
 function render() {
   renderFilterBar(document.getElementById('attribute-filter'));
   renderDuplicatesSection(document.getElementById('summon-duplicates-section'), items.ownedSummons, {
@@ -267,6 +333,7 @@ function loadAndRender() {
     for (const key of ITEM_KEYS) items[key] = data[key] || {};
     render();
     renderFriendsSection(document.getElementById('friends-section'));
+    renderStatsSection(document.getElementById('stats-section'));
   });
 }
 
@@ -278,6 +345,7 @@ chrome.storage.onChanged.addListener(changes => {
   if (changes.summonMinLevels) summonMinLevels = changes.summonMinLevels.newValue || {};
   if (changes.hiddenFriends) hiddenFriends = changes.hiddenFriends.newValue || {};
   if (changes.friends || changes.watchedSummons || changes.summonMinLevels || changes.hiddenFriends) renderFriendsSection(document.getElementById('friends-section'));
+  if (changes.friends) renderStatsSection(document.getElementById('stats-section'));
 });
 
 for (const tabButton of document.querySelectorAll('#tabs button')) {

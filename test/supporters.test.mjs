@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory, findMissingSummons, groupLayout } from '../src/supporters.js';
+import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats } from '../src/supporters.js';
 
 // Same shape as a real /quest/content/supporter_raid/ block, trimmed to the fields we read.
 function supporterBlock({ userId, name, summonId, summonName, level = 150, slot = 0, friend = true }) {
@@ -337,4 +337,26 @@ test('mergeFriendHistory adds a friend first seen through their Details without 
   const details = [{ userId, name: 'hez', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 30 }];
   const friend = mergeFriendHistory({}, details, 2, { fromDetails: true })[userId];
   assert.deepStrictEqual([friend.name, friend.sightings, friend.lastSeen], ['hez', 0, undefined]);
+});
+
+test('countSupportStats lists which friends offer each summon, by level', () => {
+  /**
+   * Given two friends with a layout (one offering Lucifer Lvl 250 in two slots, the other Lucifer Lvl 200
+   * and Bahamut Lvl 150) and one friend saved before layouts were tracked,
+   * When countSupportStats is called on them,
+   * Then it counts only the two friends with a layout and lists each friend's id once per summon, under their
+   * highest level, most-offered summon first.
+   */
+  const friends = {
+    1: { layout: { 15: { id: LUCIFER, level: 250 }, 25: { id: LUCIFER, level: 200 } } },
+    2: { layout: { 6: { id: LUCIFER, level: 200 }, 16: { id: BAHAMUT, level: 150 } } },
+    3: friendRecord('no layout', [LUCIFER]),
+  };
+  assert.deepStrictEqual(countSupportStats(friends), {
+    friendCount: 2,
+    summons: [
+      { id: LUCIFER, friendCount: 2, levels: { 200: ['2'], 250: ['1'] } },
+      { id: BAHAMUT, friendCount: 1, levels: { 150: ['2'] } },
+    ],
+  });
 });

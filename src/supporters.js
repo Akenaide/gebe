@@ -91,3 +91,20 @@ export function parseFixedSummons(capture) {
 export function parseFriendList(capture) {
   return Object.fromEntries(JSON.parse(capture.responseBody).list.map(({ id, name }) => [id, name]));
 }
+
+// From each friend's current layout; friends saved before layouts were tracked aren't counted.
+export function countSupportStats(friends) {
+  const withLayout = Object.entries(friends).filter(([, friend]) => friend.layout && Object.keys(friend.layout).length);
+  const stats = {};
+  for (const [userId, friend] of withLayout) {
+    // A summon in several slots counts once, at its highest level.
+    const best = {};
+    for (const { id, level } of Object.values(friend.layout)) best[id] = Math.max(best[id] ?? 0, level);
+    for (const [id, level] of Object.entries(best)) {
+      stats[id] ??= { id, friendCount: 0, levels: {} };
+      stats[id].friendCount++;
+      (stats[id].levels[level] ??= []).push(userId);
+    }
+  }
+  return { friendCount: withLayout.length, summons: Object.values(stats).sort((a, b) => b.friendCount - a.friendCount) };
+}

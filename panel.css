@@ -217,3 +217,21 @@ body {
   background: #c00;
   color: #fff;
 }
+
+.stats-table td {
+  padding: 2px 8px 2px 0;
+  vertical-align: middle;
+}
+
+.stats-table th {
+  text-align: left;
+  padding-right: 8px;
+}
+
+.stats-table th.sortable {
+  cursor: pointer;
+}
+
+.stats-who a {
+  margin-right: 12px;
+}
