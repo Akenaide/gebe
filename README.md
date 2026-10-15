@@ -1,23 +1,40 @@
 # Gebe
 
-A Chrome DevTools extension for [Granblue Fantasy](https://game.granbluefantasy.jp) that watches network traffic and shows which Summons and Weapons you have duplicates of — both unclaimed in your present box and already in your inventory.
+A Chrome DevTools extension for [Granblue Fantasy](https://game.granbluefantasy.jp) that watches the game's network traffic to:
+
+- count your duplicate SS Rare summons and weapons, across your crate and your inventory;
+- track your friends' supports, flag friends missing a summon you rely on, and show which supports your friends offer most.
 
 ## Install
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and select this directory.
+1. Download the latest `gebe-vX.Y.zip` from [Releases](https://github.com/Akenaide/gebe/releases) and unzip it (or clone this repo).
+2. Open `chrome://extensions`.
+3. Enable **Developer mode** (top right).
+4. Click **Load unpacked** and select the unzipped directory.
 
 ## Use
 
-1. Open DevTools on a `game.granbluefantasy.jp` tab and switch to the **Gebe** panel.
-2. Browse your present box and summon/weapon inventory in-game as normal — the extension saves the SS Rare items it sees (not the raw traffic).
-3. Duplicates show up as a grid of cards, one per item, with a total count and a breakdown of where the copies are (unclaimed vs. owned, and uncap ★ level for owned copies).
-4. A colored dot on a card's thumbnail flags items worth a second look: amber for exactly 3 copies, green for 4+.
-5. Click an item's name to open its page on [gbf.wiki](https://gbf.wiki).
-6. To keep the raw requests and responses (e.g. for debugging), click **Start capturing**; it's off every time DevTools opens. **Export JSON** saves those captures, **Import JSON** reads a captures export back into the duplicate counts, and **Clear** wipes items and captures.
+Open DevTools on a `game.granbluefantasy.jp` tab and switch to the **Gebe** panel, then play as normal. Gebe only sees the tab DevTools is open on.
 
 **Note:** DevTools must stay open on the tab for capture to keep working — this is a Chrome limitation on the underlying API, not specific to this extension. After updating the extension's code, reload it on `chrome://extensions` *and* fully close and reopen DevTools; reloading the extension alone can leave a stale panel running.
+
+### Duplicates
+
+1. Browse your present box and summon/weapon inventory in-game as normal — the extension saves the SS Rare items it sees (not the raw traffic).
+2. Duplicates show up as a grid of cards, one per item, with a total count and a breakdown of where the copies are (unclaimed vs. owned, and uncap ★ level for owned copies).
+3. A colored dot on a card's thumbnail flags items worth a second look: amber for exactly 3 copies, green for 4+.
+4. Click an item's name to open its page on [gbf.wiki](https://gbf.wiki).
+
+### Friends
+
+1. Open supporter pages before battles: Gebe records each friend's supports and the level of each one. Opening a friend's **Details** from the friend list also records their whole layout.
+2. Click summons in the picker to watch them, optionally with a minimum level. The list then shows only the friends who don't offer a watched summon at that level. **Show all friends** lists everyone.
+3. Browse your friend list pages to see, by page, which friends have no record yet, and open their Details to fill them in.
+4. Hide a friend you don't want flagged, or delete them; **Clear friends** wipes every record.
+
+### Stats
+
+A table of every support your friends offer, sortable by name or by how many friends offer it. Click a level to list who offers it.
 
 ## Development
 
@@ -26,6 +43,9 @@ No build step, no dependencies — plain ESM JavaScript run directly by the brow
 ```sh
 node --test test/*.test.mjs   # run the test suite
 node --check <file>           # syntax-check a file without running it
+just release X.Y              # bump manifest.json, commit, tag vX.Y and push
 ```
+
+Pushing a `vX.Y` tag runs a GitHub Action that zips the extension and publishes it as a release. Files marked `export-ignore` in `.gitattributes` are left out of the zip.
 
 See `CLAUDE.md` for architecture notes.
