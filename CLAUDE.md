@@ -9,7 +9,7 @@ Use the terms in `GLOSSARY.md` (capture, crate, support…) in code, UI and repl
 - Tests: `node --test test/*.test.mjs`
 - Load: `chrome://extensions` → Developer mode → "Load unpacked" → this directory.
 - After any code change: reload the extension **and** fully close and reopen DevTools on the game tab. A reload alone can leave an open panel running stale JS.
-- Release: bump `version` in `manifest.json` in its own commit, `Bump version to X.Y`.
+- Release: `just release X.Y` bumps `version` in `manifest.json` in its own commit (`Bump version to X.Y`), tags `vX.Y` and pushes. The tag push runs `.github/workflows/release.yml`, which zips the repo with `git archive` (leave files out with `export-ignore` in `.gitattributes`) and creates the GitHub release.
 
 ## Verifying
 
