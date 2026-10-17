@@ -36,9 +36,9 @@ export function countInventoryDuplicates(owned) {
 }
 
 // Keeps every summon, not only per-source duplicates: 2 in the crate + 1 owned is still a duplicate.
-export function combineDuplicateSections(crateDupes, inventoryDupes) {
+export function combineDuplicateSections(crateDuplicates, inventoryDuplicates) {
   const rows = new Map();
-  for (const c of crateDupes) {
+  for (const c of crateDuplicates) {
     rows.set(c.regular_id, {
       id: c.regular_id,
       item_name: c.item_name,
@@ -48,7 +48,7 @@ export function combineDuplicateSections(crateDupes, inventoryDupes) {
       nonZeroStars: [],
     });
   }
-  for (const inv of inventoryDupes) {
+  for (const inv of inventoryDuplicates) {
     const existing = rows.get(inv.master_id);
     if (existing) {
       existing.zeroStarCount = inv.zeroStarCount;

@@ -48,13 +48,13 @@ function renderFilterBar(container) {
 }
 
 function renderDuplicatesSection(container, owned, { title, itemKindId, assetFolder }) {
-  const crateDupes = countCrateDuplicates(items.crate, itemKindId);
-  const inventoryDupes = countInventoryDuplicates(owned);
-  let rows = combineDuplicateSections(crateDupes, inventoryDupes);
+  const crateDuplicates = countCrateDuplicates(items.crate, itemKindId);
+  const inventoryDuplicates = countInventoryDuplicates(owned);
+  let rows = combineDuplicateSections(crateDuplicates, inventoryDuplicates);
   if (selectedAttribute) rows = rows.filter(row => row.attribute_name === selectedAttribute);
 
-  container.innerHTML = `<h3>${title}</h3><div class="dupe-grid"></div>`;
-  const grid = container.querySelector('.dupe-grid');
+  container.innerHTML = `<h3>${title}</h3><div class="duplicate-grid"></div>`;
+  const grid = container.querySelector('.duplicate-grid');
   for (const row of rows) {
     const total = row.crateCount + row.zeroStarCount + row.nonZeroStars.length;
     const stars = row.nonZeroStars.map(s => `${s.evolution}★`).join(' ');
@@ -64,7 +64,7 @@ function renderDuplicatesSection(container, owned, { title, itemKindId, assetFol
     if (stars) breakdown.push(`owned ${stars}`);
 
     const el = document.createElement('div');
-    el.className = 'dupe-card';
+    el.className = 'duplicate-card';
     if (total === 3) el.classList.add('level-3');
     if (total >= 4) el.classList.add('level-4plus');
     el.title = row.item_name ?? String(row.id);
@@ -100,7 +100,7 @@ function summonThumb(id, title) {
   return img;
 }
 
-// A summon thumbnail with a caption underneath (a level, or a min-level input).
+// A summon thumbnail with a caption underneath (a level, or a num-input input).
 function summonTile(id, title, caption) {
   const tile = document.createElement('div');
   tile.className = 'summon-tile';
@@ -110,7 +110,7 @@ function summonTile(id, title, caption) {
 
 function levelCaption(level) {
   const caption = document.createElement('div');
-  caption.className = 'friend-meta';
+  caption.className = 'meta';
   caption.textContent = level ? `Lvl ${level}` : '—';
   return caption;
 }
@@ -121,7 +121,7 @@ function supportGrid(friend, allSummons) {
   grid.className = 'support-grid';
   if (!friend.layout || !Object.keys(friend.layout).length) {
     grid.textContent = 'no layout yet — seen before layouts were tracked';
-    grid.classList.add('friend-meta');
+    grid.classList.add('meta');
     return grid;
   }
   for (const { element, slots } of groupLayout(friend.layout)) {
@@ -192,7 +192,7 @@ function renderFriendsSection(container) {
   for (const id of watchedSummons) allSummons[id] ??= id;
 
   container.innerHTML = `<h3>Friends (${Object.keys(friends).length} tracked)</h3>
-    <div class="friend-controls">
+    <div class="section-controls">
       <label><input type="checkbox" class="show-all" ${showAllFriends ? 'checked' : ''} /> Show all friends</label>
       <label><input type="checkbox" class="show-hidden" ${showHiddenFriends ? 'checked' : ''} /> Show hidden (${Object.keys(hiddenFriends).length})</label>
       <button class="clear-friends">Clear friends</button>
@@ -217,7 +217,7 @@ function renderFriendsSection(container) {
     // Gebe only sees the tab DevTools is open on, so a link opening a new tab wouldn't capture anything.
     const missingCount = missingDetails.reduce((sum, { friends: missing }) => sum + missing.length, 0);
     block.innerHTML = `<h4>Details missing (${missingCount} of ${Object.keys(friendList).length} listed)</h4>
-      <div class="friend-meta">Open each one's Details from that friend list page, in this tab.</div>`;
+      <div class="meta">Open each one's Details from that friend list page, in this tab.</div>`;
     for (const { page, friends: missing } of missingDetails) {
       const row = document.createElement('div');
       row.className = 'friend-row';
@@ -241,7 +241,7 @@ function renderFriendsSection(container) {
     thumb.classList.add('watched');
     const minInput = document.createElement('input');
     minInput.type = 'number';
-    minInput.className = 'min-level';
+    minInput.className = 'num-input';
     minInput.placeholder = 'min Lvl';
     minInput.value = summonMinLevels[id] ?? '';
     minInput.addEventListener('change', () =>
@@ -274,13 +274,13 @@ function renderFriendsSection(container) {
     link.rel = 'noopener';
     link.textContent = friendName(row.userId);
     const meta = document.createElement('span');
-    meta.className = 'friend-meta';
+    meta.className = 'meta';
     // A friend only seen through their Details has no sighting yet.
     meta.textContent = row.lastSeen ? `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}` : 'seen only in Details';
     el.append(link, meta, hideControls(row.userId), deleteButton(row.userId));
     if (row.missing?.length) {
       const label = document.createElement('span');
-      label.className = 'friend-meta';
+      label.className = 'meta';
       label.textContent = 'missing:';
       el.appendChild(label);
       // Its level in the current layout tells "has it, but too low" apart from "doesn't offer it" (—).
@@ -369,19 +369,19 @@ function durationSince(time) {
 
 function renderCurrentRaid(container) {
   if (!currentRaid) {
-    container.innerHTML = '<h3>Current raid</h3><div class="friend-meta">Enter a raid with DevTools open.</div>';
+    container.innerHTML = '<h3>Current raid</h3><div class="meta">Enter a raid with DevTools open.</div>';
     return;
   }
   const hpPercent = ((100 * currentRaid.hp) / currentRaid.hpmax).toFixed(1);
   // The card is rebuilt on every poll; keep the log where the player scrolled it.
   const logScroll = container.querySelector('.raid-log')?.scrollTop ?? 0;
   container.innerHTML = `<h3></h3>
-    <div class="friend-meta"></div>
+    <div class="meta"></div>
     <table class="stats-table"></table>
     <div class="raid-log"></div>`;
   // Names and log lines come from other players, so everything goes in as text, never HTML.
   container.querySelector('h3').textContent = `${currentRaid.boss}: ${hpPercent}%`;
-  container.querySelector('.friend-meta').textContent = `Battle ID ${currentRaid.battleId}`;
+  container.querySelector('.meta').textContent = `Battle ID ${currentRaid.battleId}`;
   const nameOf = userId => currentRaid.members[userId] ?? userId;
   // Golden-angle hues keep players who joined one after another far apart on the color wheel.
   const players = currentRaid.players ?? [];
@@ -409,7 +409,7 @@ function renderCurrentRaid(container) {
     // Boss events carry the user id of whoever triggered them, so they don't take a player's color.
     if (row.className !== 'log-boss') row.style.color = colorOf(line.userId);
     const time = document.createElement('span');
-    time.className = 'friend-meta';
+    time.className = 'meta';
     // HAR frame times are in seconds; a line filled in from the battle log only has its minute.
     const date = new Date(line.time * 1000);
     time.textContent = line.approximate ? `~${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ` : `${date.toLocaleTimeString()} `;
@@ -435,7 +435,7 @@ function renderAssistSection(container) {
       block = document.createElement('div');
       block.dataset.key = key;
       block.innerHTML = `<h4></h4>
-        <label>Target HP% <input type="number" class="min-level" min="0" max="100" /></label>
+        <label>Target HP% <input type="number" class="num-input" min="0" max="100" /></label>
         <div class="assist-list"></div>`;
       const input = block.querySelector('input');
       input.addEventListener('change', () =>
@@ -461,7 +461,7 @@ function renderAssistList(block, list, target) {
   else if (!block.querySelector('h4').textContent) block.querySelector('h4').textContent = `Quest ${block.dataset.key.split('/')[1]}`;
   const container = block.querySelector('.assist-list');
   // Gebe only sees a list while the game's backup screen is open and polling it.
-  container.innerHTML = `<div class="friend-meta">Received ${new Date(list.receivedAt).toLocaleTimeString()}</div><table class="stats-table"></table>`;
+  container.innerHTML = `<div class="meta">Received ${new Date(list.receivedAt).toLocaleTimeString()}</div><table class="stats-table"></table>`;
   const table = container.querySelector('table');
   const header = table.createTHead().insertRow();
   for (const label of ['HP%', 'Host', 'Members', 'Time left']) {

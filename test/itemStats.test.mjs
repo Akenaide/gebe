@@ -100,9 +100,9 @@ test('combineDuplicateSections merges a crate duplicate and an inventory duplica
    * Then one row is returned carrying the item_name and attribute_name from the crate side and
    * the star breakdown from the inventory side.
    */
-  const crateDupes = [{ regular_id: 2040158000, item_name: 'Shiva', attribute_name: 'Light', count: 2 }];
-  const inventoryDupes = [{ master_id: 2040158000, zeroStarCount: 1, nonZeroStars: [{ param_id: 1, evolution: 1 }] }];
-  const result = combineDuplicateSections(crateDupes, inventoryDupes);
+  const crateDuplicates = [{ regular_id: 2040158000, item_name: 'Shiva', attribute_name: 'Light', count: 2 }];
+  const inventoryDuplicates = [{ master_id: 2040158000, zeroStarCount: 1, nonZeroStars: [{ param_id: 1, evolution: 1 }] }];
+  const result = combineDuplicateSections(crateDuplicates, inventoryDuplicates);
   assert.deepStrictEqual(result, [
     {
       id: 2040158000,
@@ -149,9 +149,9 @@ test('combineDuplicateSections merges 2 unclaimed crate presents with 1 owned in
    * Then the merged row carries crateCount 2 and zeroStarCount 1 together, not as two separate
    * rows and not with the inventory copy silently dropped.
    */
-  const crateDupes = [{ regular_id: 333, item_name: 'Test Summon', attribute_name: 'Water', count: 2 }];
-  const inventoryDupes = [{ master_id: 333, zeroStarCount: 1, nonZeroStars: [] }];
-  const result = combineDuplicateSections(crateDupes, inventoryDupes);
+  const crateDuplicates = [{ regular_id: 333, item_name: 'Test Summon', attribute_name: 'Water', count: 2 }];
+  const inventoryDuplicates = [{ master_id: 333, zeroStarCount: 1, nonZeroStars: [] }];
+  const result = combineDuplicateSections(crateDuplicates, inventoryDuplicates);
   assert.deepStrictEqual(result, [
     { id: 333, item_name: 'Test Summon', attribute_name: 'Water', crateCount: 2, zeroStarCount: 1, nonZeroStars: [] },
   ]);
@@ -217,11 +217,11 @@ test('combineDuplicateSections sorts rows ascending by item_name, falling back t
    * When combineDuplicateSections is called,
    * Then the rows come back sorted ascending by name: "Michael" before "Shiva".
    */
-  const crateDupes = [
+  const crateDuplicates = [
     { regular_id: 1, item_name: 'Shiva', attribute_name: 'Light', count: 2 },
     { regular_id: 2, item_name: 'Michael', attribute_name: 'Light', count: 2 },
   ];
-  const result = combineDuplicateSections(crateDupes, []);
+  const result = combineDuplicateSections(crateDuplicates, []);
   assert.deepStrictEqual(result.map(r => r.id), [2, 1]);
 });
 

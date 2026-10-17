@@ -29,21 +29,21 @@ body {
   color: #fff;
 }
 
-.dupe-section {
+.section {
   margin-bottom: 12px;
 }
 
-.dupe-section h3 {
+.section h3 {
   margin: 4px 0;
 }
 
-.dupe-grid {
+.duplicate-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.dupe-card {
+.duplicate-card {
   width: 96px;
   text-align: center;
 }
@@ -73,29 +73,29 @@ body {
   display: none;
 }
 
-.dupe-card.level-3 .thumb-wrap::after {
+.duplicate-card.level-3 .thumb-wrap::after {
   display: block;
   background: #e0a030;
 }
 
-.dupe-card.level-4plus .thumb-wrap::after {
+.duplicate-card.level-4plus .thumb-wrap::after {
   display: block;
   background: #3ea34c;
 }
 
-.dupe-card .name {
+.duplicate-card .name {
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.dupe-card .total {
+.duplicate-card .total {
   font-size: 18px;
   font-weight: bold;
 }
 
-.dupe-card .breakdown {
+.duplicate-card .breakdown {
   font-size: 12px;
   color: #999;
   white-space: nowrap;
@@ -103,11 +103,11 @@ body {
   text-overflow: ellipsis;
 }
 
-.friend-controls {
+.section-controls {
   margin-bottom: 4px;
 }
 
-.friend-controls label {
+.section-controls label {
   margin-right: 8px;
 }
 
@@ -143,7 +143,7 @@ body {
   margin-bottom: 4px;
 }
 
-.friend-meta {
+.meta {
   color: #999;
 }
 
@@ -154,7 +154,7 @@ body {
   font-size: 11px;
 }
 
-.min-level {
+.num-input {
   width: 52px;
   font-size: 11px;
 }

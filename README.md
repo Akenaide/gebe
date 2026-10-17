@@ -39,6 +39,11 @@ Open DevTools on a `game.granbluefantasy.jp` tab and switch to the **Gebe** pane
 
 A table of every support your friends offer, sortable by name or by how many friends offer it. Click a level to list who offers it.
 
+### Raids
+
+1. **Backup requests:** open the game's backup screen. Each list it polls shows every request's boss HP%, host, members and time left. Set a **Target HP%** for a quest to sort its requests by how close they are, the closest one highlighted. A list stops updating when you leave the backup screen and is hidden after 5 minutes; **Clear raids** wipes them all.
+2. **Current raid:** enter a raid with DevTools open. Gebe shows the boss HP%, the battle ID, the MVP ranking with how long since each player last acted, and the raid log. Actions from before you opened DevTools aren't in it: open the game's battle log to fill them in, timed to the minute (`~`).
+
 ## Development
 
 No build step, no dependencies — plain ESM JavaScript run directly by the browser or Node.
