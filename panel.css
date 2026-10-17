@@ -240,3 +240,41 @@ body {
   font-weight: bold;
   outline: 2px solid #e0a030;
 }
+
+.raids-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* Side by side when the panel is wide enough, stacked when it's narrow. */
+.raids-columns > * {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.raid-log {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  margin-top: 6px;
+}
+
+.raid-log > div {
+  padding: 1px 4px;
+}
+
+.log-attack {
+  border-left: 3px solid #d03030;
+  background: rgba(208, 48, 48, 0.08);
+}
+
+.log-charge {
+  border-left: 3px solid #e08020;
+  background: rgba(224, 128, 32, 0.1);
+}
+
+.log-boss {
+  color: #888;
+  font-style: italic;
+}

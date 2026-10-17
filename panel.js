@@ -22,6 +22,7 @@ let watchedSummons = [];
 let summonMinLevels = {};
 let hiddenFriends = {};
 let assistRaids = {};
+let currentRaid = null;
 let raidTargetHp = {};
 // Lists from quests left behind stop polling; past this age they're hidden.
 const ASSIST_MAX_AGE = 5 * 60_000;
@@ -336,6 +337,72 @@ function renderStatsSection(container) {
   }
 }
 
+// The game's log types: 1 normal attack, 2 charge attack, 12/13 boss overdrive/break.
+const LOG_TYPE_CLASSES = { 1: 'log-attack', 2: 'log-charge', 12: 'log-boss', 13: 'log-boss' };
+
+// Times are in seconds, like the socket frames.
+function durationSince(time) {
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - time));
+  return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`;
+}
+
+function renderCurrentRaid(container) {
+  if (!currentRaid) {
+    container.innerHTML = '<h3>Current raid</h3><div class="friend-meta">Enter a raid with DevTools open.</div>';
+    return;
+  }
+  const hpPercent = ((100 * currentRaid.hp) / currentRaid.hpmax).toFixed(1);
+  // The card is rebuilt on every poll; keep the log where the player scrolled it.
+  const logScroll = container.querySelector('.raid-log')?.scrollTop ?? 0;
+  container.innerHTML = `<h3></h3>
+    <div class="friend-meta"></div>
+    <table class="stats-table"></table>
+    <div class="raid-log"></div>`;
+  // Names and log lines come from other players, so everything goes in as text, never HTML.
+  container.querySelector('h3').textContent = `${currentRaid.boss}: ${hpPercent}%`;
+  container.querySelector('.friend-meta').textContent = `Battle ID ${currentRaid.battleId}`;
+  const nameOf = userId => currentRaid.members[userId] ?? userId;
+  // Golden-angle hues keep players who joined one after another far apart on the color wheel.
+  const players = currentRaid.players ?? [];
+  const colorOf = userId => (players.includes(userId) ? `hsl(${(players.indexOf(userId) * 137.5) % 360} 75% 38%)` : '');
+  const table = container.querySelector('table');
+  const header = table.createTHead().insertRow();
+  for (const label of ['#', 'Player', 'Honors', 'Last action']) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    header.appendChild(th);
+  }
+  const body = table.createTBody();
+  for (const entry of currentRaid.mvp) {
+    const row = body.insertRow();
+    const lastAction = currentRaid.lastActionAt?.[entry.userId];
+    // A player with no action yet is counted from when you entered; earlier actions aren't in the socket.
+    const idle = lastAction ? `${durationSince(lastAction)} ago` : `none for ${durationSince(currentRaid.enteredAt)}`;
+    for (const value of [entry.rank, nameOf(entry.userId), entry.points.toLocaleString(), idle]) row.insertCell().textContent = value;
+    row.style.color = colorOf(entry.userId);
+  }
+  const log = container.querySelector('.raid-log');
+  for (const line of currentRaid.log.toReversed()) {
+    const row = document.createElement('div');
+    row.className = LOG_TYPE_CLASSES[line.type] ?? '';
+    // Boss events carry the user id of whoever triggered them, so they don't take a player's color.
+    if (row.className !== 'log-boss') row.style.color = colorOf(line.userId);
+    const time = document.createElement('span');
+    time.className = 'friend-meta';
+    // HAR frame times are in seconds; a line filled in from the battle log only has its minute.
+    const date = new Date(line.time * 1000);
+    time.textContent = line.approximate ? `~${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ` : `${date.toLocaleTimeString()} `;
+    row.appendChild(time);
+    // Grouped numbers (damage, honors) are put in bold; split on them so the rest stays plain text.
+    for (const [index, part] of line.text.split(/(\d{1,3}(?:,\d{3})+)/).entries()) {
+      if (index % 2) row.appendChild(document.createElement('b')).textContent = part;
+      else row.append(part);
+    }
+    log.appendChild(row);
+  }
+  log.scrollTop = logScroll;
+}
+
 function renderAssistSection(container) {
   const lists = freshAssistLists(assistRaids, Date.now(), ASSIST_MAX_AGE);
   for (const block of container.querySelectorAll('[data-key]')) if (!(block.dataset.key in lists)) block.remove();
@@ -393,6 +460,8 @@ function renderAssistList(block, list, target) {
 document.getElementById('clear-raids').addEventListener('click', () => chrome.storage.local.remove('assistRaids'));
 // No poll arrives once the backup screen is left, so re-check ages on a timer.
 setInterval(() => renderAssistSection(document.getElementById('assist-section')), 30_000);
+// Keeps the "Last action" durations current between socket updates.
+setInterval(() => renderCurrentRaid(document.getElementById('current-raid-section')), 5000);
 
 function render() {
   renderFilterBar(document.getElementById('attribute-filter'));
@@ -409,7 +478,7 @@ function render() {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'watchedSummons', 'summonMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'watchedSummons', 'summonMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid'], data => {
     friends = data.friends || {};
     friendList = data.friendList || {};
     hiddenFriends = data.hiddenFriends || {};
@@ -417,11 +486,13 @@ function loadAndRender() {
     summonMinLevels = data.summonMinLevels || {};
     assistRaids = data.assistRaids || {};
     raidTargetHp = data.raidTargetHp || {};
+    currentRaid = data.currentRaid || null;
     for (const key of ITEM_KEYS) items[key] = data[key] || {};
     render();
     renderFriendsSection(document.getElementById('friends-section'));
     renderStatsSection(document.getElementById('stats-section'));
     renderAssistSection(document.getElementById('assist-section'));
+    renderCurrentRaid(document.getElementById('current-raid-section'));
   });
 }
 
@@ -437,6 +508,10 @@ chrome.storage.onChanged.addListener(changes => {
   if (changes.friends) renderStatsSection(document.getElementById('stats-section'));
   if (changes.assistRaids) assistRaids = changes.assistRaids.newValue || {};
   if (changes.raidTargetHp) raidTargetHp = changes.raidTargetHp.newValue || {};
+  if (changes.currentRaid) {
+    currentRaid = changes.currentRaid.newValue || null;
+    renderCurrentRaid(document.getElementById('current-raid-section'));
+  }
   if (changes.assistRaids || changes.raidTargetHp) renderAssistSection(document.getElementById('assist-section'));
 });
 

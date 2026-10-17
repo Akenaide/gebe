@@ -75,3 +75,11 @@ _Avoid_: Raid call, SOS
 **Target HP%**:
 The boss HP% the player wants to join a backup request at; the closest request is highlighted.
 _Avoid_: Wanted HP, HP goal
+
+**Current raid**:
+The raid the player is in, followed from its start until the result page: boss HP, MVP ranking and raid log.
+_Avoid_: Active battle, live raid
+
+**Raid log**:
+Every player's actions in the current raid, as the game sends them over the raid socket.
+_Avoid_: Battle log (the game's own on-demand log), action feed

@@ -21,7 +21,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 
 - `devtools.js` (the `devtools_page`) captures game requests via `chrome.devtools.network.onRequestFinished`, which only fires while DevTools is open on that tab. It reduces each capture to the storage keys below; raw captures are saved only while capturing is on. Every storage write goes through one promise chain, since GBF fires concurrent requests.
 - `panel.js` renders the storage keys and re-renders on `chrome.storage.onChanged`.
-- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests.
+- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests. `src/raidLog.js` follows the raid you're in: WebSocket frames fire no `onRequestFinished`, so `devtools.js` reads the raid socket's frames from `chrome.devtools.network.getHAR()` every 2 s (only sockets opened while DevTools is open are in it). When the player opens the game's battle log (`multi_battle_log`), its lines fill in the actions the socket missed.
 
 ## Storage keys
 
@@ -36,5 +36,6 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `watchedSummons`, `summonMinLevels` | panel | — |
 | `assistRaids` (`{"<tab>/<questId>": {raids, receivedAt}}`, each backup list replaced on its poll; hidden after 5 min) | `devtools.js` | Clear raids |
 | `raidTargetHp` (`{questId: percent}`) | panel | — |
+| `currentRaid` (from `start.json`, then the raid socket's frames; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
 
 Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Import JSON runs an export through `extractItems`; it doesn't restore raw captures. Storage isn't capped in code: the manifest requests `unlimitedStorage`.
