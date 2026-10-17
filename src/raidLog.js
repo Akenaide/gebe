@@ -137,3 +137,16 @@ export function backfillRaidLog(raid, lines) {
   const log = [...raid.log, ...added].toSorted((a, b) => a.time - b.time).slice(-RAID_LOG_LIMIT);
   return { ...raid, log, players: [...players], lastActionAt };
 }
+
+// Every game page loads from /<page>/content/; any but the raid page's own, the result page included, means the raid was left.
+export function leavesRaid(url) {
+  const page = new URL(url).pathname.match(/^\/([^/]+)\/content\//)?.[1];
+  return page !== undefined && page !== 'multiraid';
+}
+
+// An open socket.io socket pings about every 25 s, so a socket silent for this long has closed.
+const RAID_QUIET_LIMIT = 120;
+
+export function raidSocketQuiet(lastFrameTime, now) {
+  return now - lastFrameTime > RAID_QUIET_LIMIT;
+}

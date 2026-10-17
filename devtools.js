@@ -37,7 +37,8 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     if (capture.url.includes('/rest/multiraid/start.json')) {
       const started = raidLog.parseRaidStart(capture, Date.now() / 1000);
       if (started) {
-        if (started.raidId !== followedRaidId) lastPolledFrameTime = 0;
+        // Counts as activity, so the quiet timer starts before the socket's first frame.
+        lastPolledFrameTime = Date.now() / 1000;
         followedRaidId = started.raidId;
         enqueueUpdate('currentRaid', stored => raidLog.mergeRaidStart(stored, started));
       }
@@ -48,8 +49,7 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
       const lines = raidLog.parseBattleLog(capture, Date.now() / 1000);
       if (raidId && lines.length) enqueueUpdate('currentRaid', raid => (raid?.raidId === raidId ? raidLog.backfillRaidLog(raid, lines) : raid));
     }
-    // The result page means the raid is over; its socket goes quiet.
-    if (capture.url.includes('/resultmulti/content/index/')) followedRaidId = null;
+    if (raidLog.leavesRaid(capture.url)) followedRaidId = null;
     if (capture.url.includes('/friend/friend_list/')) {
       const listed = parseFriendList(capture);
       // The list is paged, so each page adds to the stored one.
@@ -78,7 +78,11 @@ setInterval(() => {
   chrome.devtools.network.getHAR(har => {
     const messages = raidLog.raidSocketMessages(har.entries, raidId);
     const newest = messages.at(-1)?.time ?? 0;
-    if (newest <= lastPolledFrameTime) return;
+    if (newest <= lastPolledFrameTime) {
+      // Left without a page load (a closed tab, a lost connection): stop reading the growing network log.
+      if (raidLog.raidSocketQuiet(lastPolledFrameTime, Date.now() / 1000) && followedRaidId === raidId) followedRaidId = null;
+      return;
+    }
     lastPolledFrameTime = newest;
     enqueueUpdate('currentRaid', raid => (raid?.raidId === raidId ? raidLog.applyRaidFrames(raid, messages) : raid));
   });

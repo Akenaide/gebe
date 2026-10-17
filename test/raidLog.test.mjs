@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseRaidStart, applyRaidFrames, mergeRaidStart, raidSocketMessages, RAID_LOG_LIMIT, parseBattleLog, backfillRaidLog } from '../src/raidLog.js';
+import { parseRaidStart, applyRaidFrames, mergeRaidStart, raidSocketMessages, RAID_LOG_LIMIT, parseBattleLog, backfillRaidLog, leavesRaid, raidSocketQuiet } from '../src/raidLog.js';
 
 // Same shape as a real /rest/multiraid/start.json, trimmed to the fields we read.
 function startCapture({ raidId, battleId, monster, hp, hpmax, members }) {
@@ -404,4 +404,29 @@ test('backfillRaidLog keeps the log within the limit, dropping the oldest lines'
   const old = { time: 0, userId: '2', type: 4, text: 'old', approximate: true };
   const log = backfillRaidLog({ ...emptyRaid(), log: full }, [old]).log;
   assert.deepStrictEqual([log.length, log[0].text], [RAID_LOG_LIMIT, 'line 0']);
+});
+
+test('leavesRaid is true for any game page but the raid page', () => {
+  /**
+   * Given the raid page, a raid API call, the result page and a quest page,
+   * When leavesRaid is called on each,
+   * Then only the result page and the quest page leave the raid.
+   */
+  const pages = {
+    'https://game.granbluefantasy.jp/multiraid/content/index/4114781296?_=1': false,
+    'https://game.granbluefantasy.jp/rest/multiraid/start.json?_=1': false,
+    'https://game.granbluefantasy.jp/resultmulti/content/index/4114781296?_=1': true,
+    'https://game.granbluefantasy.jp/quest/content/supporter_raid/47007998137/2/0?_=1': true,
+  };
+  for (const [url, leaves] of Object.entries(pages)) assert.strictEqual(leavesRaid(url), leaves, url);
+});
+
+test('raidSocketQuiet is true once the raid socket has sent nothing for over 2 minutes', () => {
+  /**
+   * Given a raid socket whose last frame came at time 1000 (an open socket pings every ~25 s),
+   * When raidSocketQuiet is checked 60 s and 121 s later,
+   * Then it is quiet only after 121 s.
+   */
+  const lastFrameTime = 1000;
+  assert.deepStrictEqual([raidSocketQuiet(lastFrameTime, lastFrameTime + 60), raidSocketQuiet(lastFrameTime, lastFrameTime + 121)], [false, true]);
 });
