@@ -419,7 +419,11 @@ function renderCaptureButton() {
   captureButton.textContent = capturing ? 'Stop capturing' : 'Start capturing';
   captureButton.classList.toggle('capturing', capturing);
 }
-captureButton.addEventListener('click', () => chrome.storage.local.set({ capturing: !capturing }));
+captureButton.addEventListener('click', () => {
+  if (capturing) chrome.storage.local.set({ capturing: false });
+  // Turn capturing on only once the old captures are gone, so the first new one isn't wiped.
+  else chrome.storage.local.remove('captures', () => chrome.storage.local.set({ capturing: true }));
+});
 chrome.storage.onChanged.addListener(changes => {
   if (!changes.capturing) return;
   capturing = changes.capturing.newValue;
