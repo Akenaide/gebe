@@ -24,6 +24,7 @@ Open DevTools on a `game.granbluefantasy.jp` tab and switch to the **Gebe** pane
 2. Duplicates show up as a grid of cards, one per item, with a total count and a breakdown of where the copies are (unclaimed vs. owned, and uncap ★ level for owned copies).
 3. A colored dot on a card's thumbnail flags items worth a second look: amber for exactly 3 copies, green for 4+.
 4. Click an item's name to open its page on [gbf.wiki](https://gbf.wiki).
+5. Gebe only adds what it sees, never removes: a present you claim stays counted as unclaimed, and a copy you sell or use as fodder stays counted as owned. After claiming, selling or uncapping, press **Clear** and browse your crate and inventory again.
 
 ### Friends
 
