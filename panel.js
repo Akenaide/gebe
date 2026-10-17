@@ -68,14 +68,26 @@ function renderDuplicatesSection(container, owned, { title, itemKindId, assetFol
     if (total === 3) el.classList.add('level-3');
     if (total >= 4) el.classList.add('level-4plus');
     el.title = row.item_name ?? String(row.id);
-    el.innerHTML = `
-      <div class="thumb-wrap">
-        <img src="${thumbnailUrl(assetFolder, row.id)}" />
-      </div>
-      <div class="name">${row.item_name ? `<a href="${wikiUrl(row.item_name)}" target="_blank" rel="noopener">${row.item_name}</a>` : row.id}</div>
-      <div class="total">×${total}</div>
-      <div class="breakdown">${breakdown.join(', ')}</div>
-    `;
+    // Built as text, never HTML, like every other section.
+    const thumbWrap = el.appendChild(document.createElement('div'));
+    thumbWrap.className = 'thumb-wrap';
+    thumbWrap.appendChild(document.createElement('img')).src = thumbnailUrl(assetFolder, row.id);
+    const name = el.appendChild(document.createElement('div'));
+    name.className = 'name';
+    if (row.item_name) {
+      const link = name.appendChild(document.createElement('a'));
+      link.href = wikiUrl(row.item_name);
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = row.item_name;
+    } else {
+      name.textContent = row.id;
+    }
+    for (const [className, text] of [['total', `×${total}`], ['breakdown', breakdown.join(', ')]]) {
+      const div = el.appendChild(document.createElement('div'));
+      div.className = className;
+      div.textContent = text;
+    }
     grid.appendChild(el);
   }
 }
