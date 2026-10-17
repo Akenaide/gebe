@@ -18,6 +18,8 @@ Open DevTools on a `game.granbluefantasy.jp` tab and switch to the **Gebe** pane
 
 **Note:** DevTools must stay open on the tab for capture to keep working — this is a Chrome limitation on the underlying API, not specific to this extension. After updating the extension's code, reload it on `chrome://extensions` *and* fully close and reopen DevTools; reloading the extension alone can leave a stale panel running.
 
+**One tab at a time:** keep DevTools open on only one game tab. Every open DevTools shares Gebe's storage, so two at once overwrite each other's friends and items, the current raid flips between both tabs' raids, and opening DevTools turns capturing off for both.
+
 ### Duplicates
 
 1. Browse your present box and summon/weapon inventory in-game as normal — the extension saves the SS Rare items it sees (not the raw traffic).
