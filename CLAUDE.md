@@ -27,7 +27,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 
 | Key | Written by | Wiped by |
 |---|---|---|
-| `crate`, `ownedSummons`, `ownedWeapons` | `devtools.js`, Import JSON | Clear |
+| `crate`, `ownedSummons`, `ownedWeapons` | `devtools.js` | Clear |
 | `captures` (raw, only while capturing) | `devtools.js` | Clear, Start capturing |
 | `capturing` | panel's Start/Stop; reset to off each time DevTools opens | — |
 | `friends` | `devtools.js` (supporter pages, Details) | Clear friends, per-friend delete |
@@ -38,4 +38,4 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `raidTargetHp` (`{questId: percent}`) | panel | — |
 | `currentRaid` (from `start.json`, then the raid socket's frames; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
 
-Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Import JSON runs an export through `extractItems`; it doesn't restore raw captures. Storage isn't capped in code: the manifest requests `unlimitedStorage`.
+Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Storage isn't capped in code: the manifest requests `unlimitedStorage`.

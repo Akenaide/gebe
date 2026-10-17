@@ -1,4 +1,4 @@
-import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections, extractItems } from './src/itemStats.js';
+import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
 import { countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
 import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 
@@ -534,23 +534,6 @@ document.getElementById('export').addEventListener('click', () => {
     a.click();
     URL.revokeObjectURL(url);
   });
-});
-
-document.getElementById('import').addEventListener('change', event => {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const imported = JSON.parse(reader.result);
-    chrome.storage.local.get(ITEM_KEYS, data => {
-      for (const capture of imported) {
-        for (const [key, extracted] of Object.entries(extractItems(capture))) data[key] = { ...data[key], ...extracted };
-      }
-      chrome.storage.local.set(data);
-    });
-  };
-  reader.readAsText(file);
-  event.target.value = '';
 });
 
 document.getElementById('clear').addEventListener('click', () => {

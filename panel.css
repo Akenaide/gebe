@@ -8,8 +8,7 @@ body {
   margin-bottom: 8px;
 }
 
-#controls button,
-#import-label {
+#controls button {
   margin-right: 8px;
   cursor: pointer;
 }
