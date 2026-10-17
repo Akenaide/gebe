@@ -1,6 +1,7 @@
 import { shouldCapture } from './src/capture.js';
 import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory } from './src/supporters.js';
 import { extractItems } from './src/itemStats.js';
+import { parseAssistRaids, assistListKey } from './src/assistRaids.js';
 
 let writeQueue = Promise.resolve();
 // Friends from the friend list pages seen this session, for the names of the Details pages opened from them.
@@ -36,6 +37,11 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     if (capture.url.includes('/quest/content/supporter_raid/')) {
       const supporters = parseSupporters(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
+    }
+    if (capture.url.includes('/quest/assist/search/assist_list/')) {
+      // The game re-polls each whole list every ~1.4s, so the latest one replaces that list's stored one.
+      const list = { raids: parseAssistRaids(capture), receivedAt: Date.now() };
+      enqueueUpdate('assistRaids', stored => ({ ...stored, [assistListKey(capture.url)]: list }));
     }
     if (capture.url.includes('/friend/friend_list/')) {
       const listed = parseFriendList(capture);

@@ -65,3 +65,13 @@ _Avoid_: Profile, fixed summons
 **Watched summon**:
 A summon the player expects friends to offer as a support, optionally with a minimum level.
 _Avoid_: Wanted summon, tracked summon
+
+## Raids
+
+**Backup request**:
+A raid another player opened to helpers, listed on the game's backup screen with its boss HP%. The API calls it an assist.
+_Avoid_: Raid call, SOS
+
+**Target HP%**:
+The boss HP% the player wants to join a backup request at; the closest request is highlighted.
+_Avoid_: Wanted HP, HP goal

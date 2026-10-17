@@ -1,5 +1,6 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections, extractItems } from './src/itemStats.js';
 import { countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
+import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
 
@@ -20,6 +21,10 @@ let friendList = {};
 let watchedSummons = [];
 let summonMinLevels = {};
 let hiddenFriends = {};
+let assistRaids = {};
+let raidTargetHp = {};
+// Lists from quests left behind stop polling; past this age they're hidden.
+const ASSIST_MAX_AGE = 5 * 60_000;
 let showAllFriends = false;
 let showHiddenFriends = false;
 
@@ -331,6 +336,64 @@ function renderStatsSection(container) {
   }
 }
 
+function renderAssistSection(container) {
+  const lists = freshAssistLists(assistRaids, Date.now(), ASSIST_MAX_AGE);
+  for (const block of container.querySelectorAll('[data-key]')) if (!(block.dataset.key in lists)) block.remove();
+  for (const [key, list] of Object.entries(lists).sort()) {
+    const questId = key.split('/')[1];
+    // Each list keeps its block across polls, so its target input doesn't lose focus while typing.
+    let block = container.querySelector(`[data-key="${key}"]`);
+    if (!block) {
+      block = document.createElement('div');
+      block.dataset.key = key;
+      block.innerHTML = `<h4></h4>
+        <label>Target HP% <input type="number" class="min-level" min="0" max="100" /></label>
+        <div class="assist-list"></div>`;
+      const input = block.querySelector('input');
+      input.addEventListener('change', () => {
+        const next = { ...raidTargetHp };
+        if (input.value) next[questId] = Number(input.value);
+        else delete next[questId];
+        chrome.storage.local.set({ raidTargetHp: next });
+      });
+      container.appendChild(block);
+    }
+    const input = block.querySelector('input');
+    if (document.activeElement !== input) input.value = raidTargetHp[questId] ?? '';
+    renderAssistList(block, list, raidTargetHp[questId]);
+  }
+}
+
+function renderAssistList(block, list, target) {
+  const raids = target == null ? list.raids : sortByTargetHp(list.raids, target);
+  // An empty list has no raid name, so the heading keeps the last one seen.
+  if (raids.length) block.querySelector('h4').textContent = raids[0].name;
+  else if (!block.querySelector('h4').textContent) block.querySelector('h4').textContent = `Quest ${block.dataset.key.split('/')[1]}`;
+  const container = block.querySelector('.assist-list');
+  // Gebe only sees a list while the game's backup screen is open and polling it.
+  container.innerHTML = `<div class="friend-meta">Received ${new Date(list.receivedAt).toLocaleTimeString()}</div><table class="stats-table"></table>`;
+  const table = container.querySelector('table');
+  const header = table.createTHead().insertRow();
+  for (const label of ['HP%', 'Host', 'Members', 'Time left']) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    header.appendChild(th);
+  }
+  const body = table.createTBody();
+  for (const [index, raid] of raids.entries()) {
+    const row = body.insertRow();
+    // Host names are typed by other players, so they go in as text, never HTML.
+    for (const value of [`${raid.hp}%`, raid.host, `${raid.members}/${raid.limit}`, raid.timeLeft]) {
+      row.insertCell().textContent = value;
+    }
+    if (target != null && index === 0) row.classList.add('closest-raid');
+  }
+}
+
+document.getElementById('clear-raids').addEventListener('click', () => chrome.storage.local.remove('assistRaids'));
+// No poll arrives once the backup screen is left, so re-check ages on a timer.
+setInterval(() => renderAssistSection(document.getElementById('assist-section')), 30_000);
+
 function render() {
   renderFilterBar(document.getElementById('attribute-filter'));
   renderDuplicatesSection(document.getElementById('summon-duplicates-section'), items.ownedSummons, {
@@ -346,16 +409,19 @@ function render() {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'watchedSummons', 'summonMinLevels', 'hiddenFriends'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'watchedSummons', 'summonMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp'], data => {
     friends = data.friends || {};
     friendList = data.friendList || {};
     hiddenFriends = data.hiddenFriends || {};
     watchedSummons = data.watchedSummons || [];
     summonMinLevels = data.summonMinLevels || {};
+    assistRaids = data.assistRaids || {};
+    raidTargetHp = data.raidTargetHp || {};
     for (const key of ITEM_KEYS) items[key] = data[key] || {};
     render();
     renderFriendsSection(document.getElementById('friends-section'));
     renderStatsSection(document.getElementById('stats-section'));
+    renderAssistSection(document.getElementById('assist-section'));
   });
 }
 
@@ -369,6 +435,9 @@ chrome.storage.onChanged.addListener(changes => {
   if (changes.hiddenFriends) hiddenFriends = changes.hiddenFriends.newValue || {};
   if (changes.friends || changes.friendList || changes.watchedSummons || changes.summonMinLevels || changes.hiddenFriends) renderFriendsSection(document.getElementById('friends-section'));
   if (changes.friends) renderStatsSection(document.getElementById('stats-section'));
+  if (changes.assistRaids) assistRaids = changes.assistRaids.newValue || {};
+  if (changes.raidTargetHp) raidTargetHp = changes.raidTargetHp.newValue || {};
+  if (changes.assistRaids || changes.raidTargetHp) renderAssistSection(document.getElementById('assist-section'));
 });
 
 for (const tabButton of document.querySelectorAll('#tabs button')) {

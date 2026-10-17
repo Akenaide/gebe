@@ -235,3 +235,8 @@ body {
 .stats-who a {
   margin-right: 12px;
 }
+
+.closest-raid {
+  font-weight: bold;
+  outline: 2px solid #e0a030;
+}

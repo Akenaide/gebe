@@ -21,7 +21,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 
 - `devtools.js` (the `devtools_page`) captures game requests via `chrome.devtools.network.onRequestFinished`, which only fires while DevTools is open on that tab. It reduces each capture to the storage keys below; raw captures are saved only while capturing is on. Every storage write goes through one promise chain, since GBF fires concurrent requests.
 - `panel.js` renders the storage keys and re-renders on `chrome.storage.onChanged`.
-- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports.
+- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests.
 
 ## Storage keys
 
@@ -34,5 +34,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `friendList` (`{userId: {name, page}}`, from the friend list pages) | `devtools.js` | per-friend delete |
 | `hiddenFriends` (`{userId: note}`) | panel | per-friend delete |
 | `watchedSummons`, `summonMinLevels` | panel | — |
+| `assistRaids` (`{"<tab>/<questId>": {raids, receivedAt}}`, each backup list replaced on its poll; hidden after 5 min) | `devtools.js` | Clear raids |
+| `raidTargetHp` (`{questId: percent}`) | panel | — |
 
 Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Import JSON runs an export through `extractItems`; it doesn't restore raw captures. Storage isn't capped in code: the manifest requests `unlimitedStorage`.
