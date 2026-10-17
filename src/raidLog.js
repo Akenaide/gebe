@@ -44,7 +44,7 @@ export function applyRaidFrames(raid, messages) {
     lastFrameTime = Math.max(lastFrameTime, message.time);
     // socket.io prefixes an event frame with "42": ["raid", payload]; pings and handshakes are bare digits.
     if (message.type !== 'receive' || !message.data.startsWith('42')) continue;
-    // This runs inside the storage write chain, where a throw would stall every later write; skip what can't be read.
+    // A throw would drop the whole poll, and every later one, since the frame is never moved past; skip what can't be read.
     try {
       const [event, payload] = JSON.parse(message.data.slice(2));
       if (event !== 'raid') continue;

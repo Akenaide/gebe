@@ -3,25 +3,14 @@ import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory
 import { extractItems } from './src/itemStats.js';
 import { parseAssistRaids, assistListKey } from './src/assistRaids.js';
 import * as raidLog from './src/raidLog.js';
+import { createWriteQueue } from './src/writeQueue.js';
 
-let writeQueue = Promise.resolve();
+const enqueueUpdate = createWriteQueue(chrome.storage.local);
 // Friends from the friend list pages seen this session, for the names of the Details pages opened from them.
 let listedFriends = {};
 // The raid whose socket frames are being followed, and the newest frame already queued for storage.
 let followedRaidId = null;
 let lastPolledFrameTime = 0;
-
-// Every storage read-modify-write goes through this one chain, since GBF fires concurrent requests.
-function enqueueUpdate(key, update) {
-  writeQueue = writeQueue.then(
-    () =>
-      new Promise(resolve => {
-        chrome.storage.local.get(key, data => {
-          chrome.storage.local.set({ [key]: update(data[key]) }, resolve);
-        });
-      })
-  );
-}
 
 chrome.devtools.network.onRequestFinished.addListener(request => {
   if (!shouldCapture(request.request.url)) return;
