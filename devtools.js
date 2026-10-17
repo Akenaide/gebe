@@ -6,8 +6,6 @@ import * as raidLog from './src/raidLog.js';
 import { createWriteQueue } from './src/writeQueue.js';
 
 const enqueueUpdate = createWriteQueue(chrome.storage.local);
-// Friends from the friend list pages seen this session, for the names of the Details pages opened from them.
-let listedFriends = {};
 // The raid whose socket frames are being followed, and the newest frame already queued for storage.
 let followedRaidId = null;
 let lastPolledFrameTime = 0;
@@ -54,13 +52,12 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     if (capture.url.includes('/resultmulti/content/index/')) followedRaidId = null;
     if (capture.url.includes('/friend/friend_list/')) {
       const listed = parseFriendList(capture);
-      listedFriends = { ...listedFriends, ...listed };
       // The list is paged, so each page adds to the stored one.
       enqueueUpdate('friendList', friendList => ({ ...friendList, ...listed }));
     }
     if (capture.url.includes('/friend/friend_fixed_summon/')) {
       // shortcut: a Details with no supports set merges nothing, so that friend stays listed as missing; mark it from the URL if it shows up.
-      const supporters = parseFixedSummons(capture).map(support => ({ ...support, name: listedFriends[support.userId]?.name }));
+      const supporters = parseFixedSummons(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now(), { fromDetails: true }));
     }
   });

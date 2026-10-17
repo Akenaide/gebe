@@ -125,6 +125,11 @@ function supportGrid(friend, allSummons) {
   return grid;
 }
 
+// Details has no name, so a friend first seen there takes it from the friend list pages.
+function friendName(userId) {
+  return friends[userId]?.name ?? friendList[userId]?.name ?? userId;
+}
+
 // "Hide" tick plus a note on why this friend is fine despite missing summons.
 function hideControls(userId) {
   const wrap = document.createElement('span');
@@ -255,7 +260,7 @@ function renderFriendsSection(container) {
     link.href = `https://game.granbluefantasy.jp/#profile/${row.userId}`;
     link.target = '_blank';
     link.rel = 'noopener';
-    link.textContent = row.name ?? row.userId;
+    link.textContent = friendName(row.userId);
     const meta = document.createElement('span');
     meta.className = 'friend-meta';
     // A friend only seen through their Details has no sighting yet.
@@ -334,7 +339,7 @@ function renderStatsSection(container) {
         link.href = `https://game.granbluefantasy.jp/#profile/${userId}`;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.textContent = friends[userId].name ?? userId;
+        link.textContent = friendName(userId);
         whoCell.appendChild(link);
       }
     }
