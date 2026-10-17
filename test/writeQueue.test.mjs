@@ -36,3 +36,19 @@ test('createWriteQueue keeps writing after an update throws', async () => {
   await Promise.race([done, new Promise(resolve => setTimeout(resolve, 100))]);
   assert.deepStrictEqual(storage.data.crate, crate);
 });
+
+test('createWriteQueue serializes updates from two pages sharing one storage', async () => {
+  /**
+   * Given two write queues over one storage, like the panel and a DevTools page,
+   * When each adds a friend to the same key at once,
+   * Then both friends are kept.
+   */
+  const storage = fakeStorage();
+  const fromDevtools = createWriteQueue(storage);
+  const fromPanel = createWriteQueue(storage);
+  await Promise.all([
+    fromDevtools('friends', friends => ({ ...friends, 1: 'yuzu' })),
+    fromPanel('friends', friends => ({ ...friends, 2: 'ゆず' })),
+  ]);
+  assert.deepStrictEqual(storage.data.friends, { 1: 'yuzu', 2: 'ゆず' });
+});

@@ -1,12 +1,15 @@
-// Every storage read-modify-write goes through this one chain, since GBF fires concurrent requests.
+// Every storage read-modify-write takes this one lock, since GBF fires concurrent requests.
+// A Web Lock is shared by every page of the extension's origin: the panel and each open DevTools.
+const LOCK = 'gebe-storage';
+
 export function createWriteQueue(storage) {
-  let writeQueue = Promise.resolve();
   return function enqueueUpdate(key, update) {
-    writeQueue = writeQueue.then(
+    return navigator.locks.request(
+      LOCK,
       () =>
         new Promise(resolve => {
           storage.get(key, data => {
-            // A throw here would never resolve, stalling every later write; that one update is dropped instead.
+            // A throw here would never resolve, holding the lock forever; that one update is dropped instead.
             let value;
             try {
               value = update(data[key]);
@@ -19,6 +22,5 @@ export function createWriteQueue(storage) {
           });
         })
     );
-    return writeQueue;
   };
 }

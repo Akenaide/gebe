@@ -1,6 +1,9 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
 import { countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
 import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
+import { createWriteQueue } from './src/writeQueue.js';
+
+const enqueueUpdate = createWriteQueue(chrome.storage.local);
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
 
@@ -134,12 +137,13 @@ function hideControls(userId) {
   note.className = 'hide-note';
   note.placeholder = 'why keep them?';
   note.value = hiddenFriends[userId] ?? '';
-  const save = () => {
-    const next = { ...hiddenFriends };
-    if (tick.checked) next[userId] = note.value;
-    else delete next[userId];
-    chrome.storage.local.set({ hiddenFriends: next });
-  };
+  const save = () =>
+    enqueueUpdate('hiddenFriends', hidden => {
+      const next = { ...hidden };
+      if (tick.checked) next[userId] = note.value;
+      else delete next[userId];
+      return next;
+    });
   tick.addEventListener('change', save);
   note.addEventListener('change', () => tick.checked && save());
   const label = document.createElement('label');
@@ -153,15 +157,13 @@ function deleteButton(userId) {
   const button = document.createElement('button');
   button.textContent = 'delete';
   button.addEventListener('click', () => {
-    chrome.storage.local.get(['friends', 'hiddenFriends', 'friendList'], data => {
-      const nextFriends = { ...data.friends };
-      const nextHidden = { ...data.hiddenFriends };
-      const nextList = { ...data.friendList };
-      delete nextFriends[userId];
-      delete nextHidden[userId];
-      delete nextList[userId];
-      chrome.storage.local.set({ friends: nextFriends, hiddenFriends: nextHidden, friendList: nextList });
-    });
+    for (const key of ['friends', 'hiddenFriends', 'friendList']) {
+      enqueueUpdate(key, stored => {
+        const next = { ...stored };
+        delete next[userId];
+        return next;
+      });
+    }
   });
   return button;
 }
@@ -213,8 +215,7 @@ function renderFriendsSection(container) {
   for (const [id, name] of Object.entries(allSummons).sort((a, b) => a[1].localeCompare(b[1]))) {
     const thumb = summonThumb(id, name);
     thumb.addEventListener('click', () => {
-      const next = watchedSummons.includes(id) ? watchedSummons.filter(w => w !== id) : [...watchedSummons, id];
-      chrome.storage.local.set({ watchedSummons: next });
+      enqueueUpdate('watchedSummons', (watched = []) => (watched.includes(id) ? watched.filter(w => w !== id) : [...watched, id]));
     });
     if (!watchedSummons.includes(id)) {
       picker.appendChild(thumb);
@@ -226,12 +227,14 @@ function renderFriendsSection(container) {
     minInput.className = 'min-level';
     minInput.placeholder = 'min Lvl';
     minInput.value = summonMinLevels[id] ?? '';
-    minInput.addEventListener('change', () => {
-      const next = { ...summonMinLevels };
-      if (minInput.value) next[id] = Number(minInput.value);
-      else delete next[id];
-      chrome.storage.local.set({ summonMinLevels: next });
-    });
+    minInput.addEventListener('change', () =>
+      enqueueUpdate('summonMinLevels', minLevels => {
+        const next = { ...minLevels };
+        if (minInput.value) next[id] = Number(minInput.value);
+        else delete next[id];
+        return next;
+      })
+    );
     const tile = document.createElement('div');
     tile.className = 'summon-tile';
     tile.append(thumb, minInput);
@@ -417,12 +420,14 @@ function renderAssistSection(container) {
         <label>Target HP% <input type="number" class="min-level" min="0" max="100" /></label>
         <div class="assist-list"></div>`;
       const input = block.querySelector('input');
-      input.addEventListener('change', () => {
-        const next = { ...raidTargetHp };
-        if (input.value) next[questId] = Number(input.value);
-        else delete next[questId];
-        chrome.storage.local.set({ raidTargetHp: next });
-      });
+      input.addEventListener('change', () =>
+        enqueueUpdate('raidTargetHp', targets => {
+          const next = { ...targets };
+          if (input.value) next[questId] = Number(input.value);
+          else delete next[questId];
+          return next;
+        })
+      );
       container.appendChild(block);
     }
     const input = block.querySelector('input');
