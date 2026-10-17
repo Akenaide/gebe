@@ -17,7 +17,7 @@ export function countCrateDuplicates(crate, itemKindId) {
       });
     }
   }
-  return [...counts.values()].sort((a, b) => b.count - a.count);
+  return [...counts.values()];
 }
 
 // Uncapped copies stay listed one by one: most uncap stars come from resource items, not fed duplicates, so a summed total misleads.

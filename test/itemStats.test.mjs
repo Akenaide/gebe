@@ -8,8 +8,7 @@ test('countCrateDuplicates counts repeated regular_id among crate items of the g
    * real present.json, but two different present ids), one Shiva, and one weapon (item_kind_id '1')
    * that must be ignored when querying for kind '2',
    * When countCrateDuplicates is called with itemKindId '2',
-   * Then Tetragod is reported with count 2 and Shiva with count 1, sorted by count desc, and the
-   * weapon does not appear.
+   * Then Tetragod is reported with count 2 and Shiva with count 1, and the weapon does not appear.
    */
   const crate = {
     6891474499: { item_kind_id: '2', regular_id: 2040435000, item_name: 'Tetragod', attribute: '1' },

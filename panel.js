@@ -142,6 +142,31 @@ function friendName(userId) {
   return friends[userId]?.name ?? friendList[userId]?.name ?? userId;
 }
 
+function profileLink(userId) {
+  const link = document.createElement('a');
+  link.href = `https://game.granbluefantasy.jp/#profile/${userId}`;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = friendName(userId);
+  return link;
+}
+
+// Summon names from friends' layouts; a layout saved before names were stored falls back to the id.
+function summonNames() {
+  const names = {};
+  for (const friend of Object.values(friends)) for (const { id, name } of Object.values(friend.layout ?? {})) names[id] = name ?? names[id] ?? id;
+  return names;
+}
+
+function tableHeader(table, labels) {
+  const header = table.createTHead().insertRow();
+  return labels.map(label => {
+    const th = header.appendChild(document.createElement('th'));
+    th.textContent = label;
+    return th;
+  });
+}
+
 // "Hide" tick plus a note on why this friend is fine despite missing summons.
 function hideControls(userId) {
   const wrap = document.createElement('span');
@@ -186,8 +211,7 @@ function deleteButton(userId) {
 }
 
 function renderFriendsSection(container) {
-  const allSummons = {};
-  for (const friend of Object.values(friends)) for (const { id, name } of Object.values(friend.layout ?? {})) allSummons[id] = name ?? allSummons[id] ?? id;
+  const allSummons = summonNames();
   // Keep watched summons pickable after "Clear friends", so they can still be un-watched.
   for (const id of watchedSummons) allSummons[id] ??= id;
 
@@ -268,16 +292,11 @@ function renderFriendsSection(container) {
     card.className = 'friend-card';
     const el = document.createElement('div');
     el.className = 'friend-row';
-    const link = document.createElement('a');
-    link.href = `https://game.granbluefantasy.jp/#profile/${row.userId}`;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.textContent = friendName(row.userId);
     const meta = document.createElement('span');
     meta.className = 'meta';
     // A friend only seen through their Details has no sighting yet.
     meta.textContent = row.lastSeen ? `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}` : 'seen only in Details';
-    el.append(link, meta, hideControls(row.userId), deleteButton(row.userId));
+    el.append(profileLink(row.userId), meta, hideControls(row.userId), deleteButton(row.userId));
     if (row.missing?.length) {
       const label = document.createElement('span');
       label.className = 'meta';
@@ -297,8 +316,7 @@ let statsSort = { key: 'friends', descending: true };
 let statsPick = null; // {id, level}: the level clicked to list who offers it
 
 function renderStatsSection(container) {
-  const allSummons = {};
-  for (const friend of Object.values(friends)) for (const { id, name } of Object.values(friend.layout ?? {})) allSummons[id] = name ?? allSummons[id] ?? id;
+  const allSummons = summonNames();
   const nameOf = id => allSummons[id] ?? id;
   const { friendCount, summons } = countSupportStats(friends);
   const sortValue = { friends: row => row.friendCount, name: row => nameOf(row.id) };
@@ -311,18 +329,15 @@ function renderStatsSection(container) {
 
   container.innerHTML = `<h3>Supports across ${friendCount} friends with a layout</h3><table class="stats-table"></table>`;
   const table = container.querySelector('table');
-  const header = table.createTHead().insertRow();
-  for (const [key, label] of [[null, ''], ['name', 'Summon'], ['friends', 'Friends'], [null, 'Levels (click one to see who)']]) {
-    const th = document.createElement('th');
-    th.textContent = label + (key === statsSort.key ? (statsSort.descending ? ' ▼' : ' ▲') : '');
-    if (key) {
-      th.className = 'sortable';
-      th.addEventListener('click', () => {
-        statsSort = { key, descending: key === statsSort.key ? !statsSort.descending : key === 'friends' };
-        renderStatsSection(container);
-      });
-    }
-    header.appendChild(th);
+  const columns = [[null, ''], ['name', 'Summon'], ['friends', 'Friends'], [null, 'Levels (click one to see who)']];
+  const headers = tableHeader(table, columns.map(([key, label]) => label + (key === statsSort.key ? (statsSort.descending ? ' ▼' : ' ▲') : '')));
+  for (const [index, [key]] of columns.entries()) {
+    if (!key) continue;
+    headers[index].className = 'sortable';
+    headers[index].addEventListener('click', () => {
+      statsSort = { key, descending: key === statsSort.key ? !statsSort.descending : key === 'friends' };
+      renderStatsSection(container);
+    });
   }
 
   const body = table.createTBody();
@@ -346,14 +361,7 @@ function renderStatsSection(container) {
       const whoCell = body.insertRow().insertCell();
       whoCell.colSpan = 4;
       whoCell.className = 'stats-who';
-      for (const userId of userIds) {
-        const link = document.createElement('a');
-        link.href = `https://game.granbluefantasy.jp/#profile/${userId}`;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.textContent = friendName(userId);
-        whoCell.appendChild(link);
-      }
+      for (const userId of userIds) whoCell.appendChild(profileLink(userId));
     }
   }
 }
@@ -387,12 +395,7 @@ function renderCurrentRaid(container) {
   const players = currentRaid.players ?? [];
   const colorOf = userId => (players.includes(userId) ? `hsl(${(players.indexOf(userId) * 137.5) % 360} 75% 38%)` : '');
   const table = container.querySelector('table');
-  const header = table.createTHead().insertRow();
-  for (const label of ['#', 'Player', 'Honors', 'Last action']) {
-    const th = document.createElement('th');
-    th.textContent = label;
-    header.appendChild(th);
-  }
+  tableHeader(table, ['#', 'Player', 'Honors', 'Last action']);
   const body = table.createTBody();
   for (const entry of currentRaid.mvp) {
     const row = body.insertRow();
@@ -463,12 +466,7 @@ function renderAssistList(block, list, target) {
   // Gebe only sees a list while the game's backup screen is open and polling it.
   container.innerHTML = `<div class="meta">Received ${new Date(list.receivedAt).toLocaleTimeString()}</div><table class="stats-table"></table>`;
   const table = container.querySelector('table');
-  const header = table.createTHead().insertRow();
-  for (const label of ['HP%', 'Host', 'Members', 'Time left']) {
-    const th = document.createElement('th');
-    th.textContent = label;
-    header.appendChild(th);
-  }
+  tableHeader(table, ['HP%', 'Host', 'Members', 'Time left']);
   const body = table.createTBody();
   for (const [index, raid] of raids.entries()) {
     const row = body.insertRow();
