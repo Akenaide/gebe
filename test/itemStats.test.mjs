@@ -80,7 +80,7 @@ test('countInventoryDuplicates lists every non-0★ copy individually, matching 
   ]);
 });
 
-test('countInventoryDuplicates includes a master_id with only one owned copy (filtering happens later, at the combined-total level)', () => {
+test('countInventoryDuplicates includes a master_id with only one owned copy, since single copies stay listed', () => {
   /**
    * Given a single owned copy of a summon,
    * When countInventoryDuplicates is called,

@@ -25,7 +25,7 @@ The summons and weapons the player owns.
 _Avoid_: Collection, stash
 
 **Duplicate**:
-A summon or weapon seen more than once across the crate and the inventory.
+A summon or weapon seen more than once across the crate and the inventory. The Duplicates tab also lists single copies, so the player sees what they own only once.
 _Avoid_: Dupe, copy
 
 **Uncap**:
