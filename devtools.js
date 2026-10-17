@@ -5,7 +5,7 @@ import { parseAssistRaids, assistListKey } from './src/assistRaids.js';
 import * as raidLog from './src/raidLog.js';
 import { createWriteQueue } from './src/writeQueue.js';
 
-const enqueueUpdate = createWriteQueue(chrome.storage.local);
+const { enqueueUpdate } = createWriteQueue(chrome.storage.local);
 // The raid whose socket frames are being followed, and the newest frame already queued for storage.
 let followedRaidId = null;
 let lastPolledFrameTime = 0;

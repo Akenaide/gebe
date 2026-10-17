@@ -17,6 +17,10 @@ function fakeStorage() {
       Object.assign(data, items);
       callback();
     }),
+    remove: (keys, callback) => later(() => {
+      for (const key of [keys].flat()) delete data[key];
+      callback();
+    }),
   };
 }
 
@@ -27,7 +31,7 @@ test('createWriteQueue keeps writing after an update throws', async () => {
    * Then the valid update is still written.
    */
   const storage = fakeStorage();
-  const enqueueUpdate = createWriteQueue(storage);
+  const { enqueueUpdate } = createWriteQueue(storage);
   const crate = { 1: { regular_id: '2040056000' } };
   enqueueUpdate('assistRaids', () => {
     throw new Error('unreadable response');
@@ -44,11 +48,24 @@ test('createWriteQueue serializes updates from two pages sharing one storage', a
    * Then both friends are kept.
    */
   const storage = fakeStorage();
-  const fromDevtools = createWriteQueue(storage);
-  const fromPanel = createWriteQueue(storage);
+  const fromDevtools = createWriteQueue(storage).enqueueUpdate;
+  const fromPanel = createWriteQueue(storage).enqueueUpdate;
   await Promise.all([
     fromDevtools('friends', friends => ({ ...friends, 1: 'yuzu' })),
     fromPanel('friends', friends => ({ ...friends, 2: 'ゆず' })),
   ]);
   assert.deepStrictEqual(storage.data.friends, { 1: 'yuzu', 2: 'ゆず' });
+});
+
+test('createWriteQueue removes a key only after an update already queued on it', async () => {
+  /**
+   * Given a crate update from DevTools in flight when the panel's Clear removes the crate,
+   * When both run,
+   * Then the crate is gone, not written back by the update.
+   */
+  const storage = fakeStorage();
+  const { enqueueUpdate } = createWriteQueue(storage);
+  const { enqueueRemove } = createWriteQueue(storage);
+  await Promise.all([enqueueUpdate('crate', () => ({ 1: { regular_id: '2040056000' } })), enqueueRemove(['crate'])]);
+  assert.strictEqual(storage.data.crate, undefined);
 });

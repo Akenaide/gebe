@@ -1,9 +1,13 @@
-// Every storage read-modify-write takes this one lock, since GBF fires concurrent requests.
+// Every storage read-modify-write, and every remove, takes this one lock, since GBF fires concurrent requests.
 // A Web Lock is shared by every page of the extension's origin: the panel and each open DevTools.
 const LOCK = 'gebe-storage';
 
 export function createWriteQueue(storage) {
-  return function enqueueUpdate(key, update) {
+  // Under the lock too, so an update that already read the key can't write it back after the remove.
+  function enqueueRemove(keys) {
+    return navigator.locks.request(LOCK, () => new Promise(resolve => storage.remove(keys, resolve)));
+  }
+  function enqueueUpdate(key, update) {
     return navigator.locks.request(
       LOCK,
       () =>
@@ -22,5 +26,6 @@ export function createWriteQueue(storage) {
           });
         })
     );
-  };
+  }
+  return { enqueueUpdate, enqueueRemove };
 }

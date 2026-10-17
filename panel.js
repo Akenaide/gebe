@@ -4,7 +4,7 @@ import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 import { createWriteQueue } from './src/writeQueue.js';
 import { ELEMENTS } from './src/elements.js';
 
-const enqueueUpdate = createWriteQueue(chrome.storage.local);
+const { enqueueUpdate, enqueueRemove } = createWriteQueue(chrome.storage.local);
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
 
@@ -232,7 +232,7 @@ function renderFriendsSection(container) {
     showHiddenFriends = event.target.checked;
     renderFriendsSection(container);
   });
-  container.querySelector('.clear-friends').addEventListener('click', () => chrome.storage.local.remove('friends'));
+  container.querySelector('.clear-friends').addEventListener('click', () => enqueueRemove('friends'));
 
   // Friends from the friend list pages Gebe has no record of yet; opening their Details fills one in.
   const missingDetails = findMissingDetails(friendList, friends);
@@ -478,7 +478,7 @@ function renderAssistList(block, list, target) {
   }
 }
 
-document.getElementById('clear-raids').addEventListener('click', () => chrome.storage.local.remove('assistRaids'));
+document.getElementById('clear-raids').addEventListener('click', () => enqueueRemove('assistRaids'));
 // No poll arrives once the backup screen is left, so re-check ages on a timer.
 setInterval(() => renderAssistSection(document.getElementById('assist-section')), 30_000);
 // Keeps the "Last action" durations current between socket updates.
@@ -558,7 +558,7 @@ document.getElementById('export').addEventListener('click', () => {
 });
 
 document.getElementById('clear').addEventListener('click', () => {
-  chrome.storage.local.remove(['captures', ...ITEM_KEYS]);
+  enqueueRemove(['captures', ...ITEM_KEYS]);
 });
 
 const captureButton = document.getElementById('capture');
@@ -570,7 +570,7 @@ function renderCaptureButton() {
 captureButton.addEventListener('click', () => {
   if (capturing) chrome.storage.local.set({ capturing: false });
   // Turn capturing on only once the old captures are gone, so the first new one isn't wiped.
-  else chrome.storage.local.remove('captures', () => chrome.storage.local.set({ capturing: true }));
+  else enqueueRemove('captures').then(() => chrome.storage.local.set({ capturing: true }));
 });
 chrome.storage.onChanged.addListener(changes => {
   if (!changes.capturing) return;
