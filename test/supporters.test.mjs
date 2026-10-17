@@ -93,20 +93,18 @@ test('mergeFriendHistory adds a newly seen friend with all their summons and one
   assert.deepStrictEqual(mergeFriendHistory({}, supporters, seenAt), {
     [userId]: {
       name,
-      seenSummons: { 2040114000: 'Kaguya', 2040056000: 'Lucifer' },
-      bestLevels: { 2040114000: 150, 2040056000: 250 },
-      layout: { 20: { id: '2040114000', level: 150 }, 15: { id: '2040056000', level: 250 } },
+      layout: { 20: { id: '2040114000', name: 'Kaguya', level: 150 }, 15: { id: '2040056000', name: 'Lucifer', level: 250 } },
       sightings: 1,
       lastSeen: seenAt,
     },
   });
 });
 
-test('mergeFriendHistory updates a known friend without losing earlier summons', () => {
+test('mergeFriendHistory replaces a known friend\'s summons with their current layout', () => {
   /**
-   * Given a store where friend 10733230 (old name "yuzu") was seen once with Kaguya,
+   * Given a store where friend 10733230 (old name "yuzu") was seen once with Kaguya, saved with the old history fields,
    * When a later capture shows them renamed ゆず and supporting Lucifer,
-   * Then they keep Kaguya and gain Lucifer in seen summons, the layout is just Lucifer, sightings goes to 2,
+   * Then their record holds just Lucifer in the layout, with no history of Kaguya, sightings goes to 2,
    * the name becomes ゆず and lastSeen moves to the new capture time — and the original store object is left untouched.
    */
   const userId = '10733230';
@@ -119,27 +117,11 @@ test('mergeFriendHistory updates a known friend without losing earlier summons',
   const result = mergeFriendHistory(friends, [{ userId, name: newName, summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 15 }], seenAt);
   assert.deepStrictEqual(result[userId], {
     name: newName,
-    seenSummons: { 2040114000: 'Kaguya', 2040056000: 'Lucifer' },
-    bestLevels: { 2040114000: 150, 2040056000: 250 },
-    layout: { 15: { id: '2040056000', level: 250 } },
+    layout: { 15: { id: '2040056000', name: 'Lucifer', level: 250 } },
     sightings: 2,
     lastSeen: seenAt,
   });
   assert.deepStrictEqual(friends, before, 'the input store must not be mutated');
-});
-
-test('mergeFriendHistory keeps the highest level seen for each summon', () => {
-  /**
-   * Given a friend tracked before levels existed (no bestLevels field), later seen with Hades Lvl 250,
-   * When a newer capture shows them with Hades Lvl 230,
-   * Then their best Hades level stays 250 — a lower-level support doesn't erase a better one.
-   */
-  const userId = '10733230';
-  const hades = '2040090000';
-  const legacy = { [userId]: { name: 'ゆず', seenSummons: {}, sightings: 1, lastSeen: 1 } };
-  const after250 = mergeFriendHistory(legacy, [{ userId, name: 'ゆず', summonId: hades, summonName: 'Hades', level: 250 }], 2);
-  const after230 = mergeFriendHistory(after250, [{ userId, name: 'ゆず', summonId: hades, summonName: 'Hades', level: 230 }], 3);
-  assert.deepStrictEqual(after230[userId].bestLevels, { [hades]: 250 });
 });
 
 test('mergeFriendHistory replaces the whole layout with a supporter page', () => {
@@ -149,26 +131,27 @@ test('mergeFriendHistory replaces the whole layout with a supporter page', () =>
    * Then the layout is just slot 6 with Hades Lvl 250 — a supporter page shows every slot, so slot 15 was emptied.
    */
   const userId = '10733230';
-  const hades = { id: '2040090000', level: 250 };
+  const hades = { id: '2040090000', name: 'Hades', level: 250 };
   const friends = {
-    [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: { 6: { id: hades.id, level: 230 }, 15: { id: '2040056000', level: 250 } }, sightings: 1, lastSeen: 1 },
+    [userId]: { name: 'ゆず', layout: { 6: { id: hades.id, level: 230 }, 15: { id: '2040056000', level: 250 } }, sightings: 1, lastSeen: 1 },
   };
-  const result = mergeFriendHistory(friends, [{ userId, name: 'ゆず', summonId: hades.id, summonName: 'Hades', level: hades.level, slot: 6 }], 2);
+  const result = mergeFriendHistory(friends, [{ userId, name: 'ゆず', summonId: hades.id, summonName: hades.name, level: hades.level, slot: 6 }], 2);
   assert.deepStrictEqual(result[userId].layout, { 6: hades });
 });
 
 const LUCIFER = '2040056000';
 const BAHAMUT = '2040003000';
 
-function friendRecord(name, summonIds, sightings = 1) {
-  return { name, seenSummons: Object.fromEntries(summonIds.map(id => [id, `summon ${id}`])), sightings, lastSeen: 1791615993215 };
+function friendRecord(name, summonIds, sightings = 1, level = 250) {
+  const layout = Object.fromEntries(summonIds.map((id, slot) => [slot, { id, name: `summon ${id}`, level }]));
+  return { name, layout, sightings, lastSeen: 1791615993215 };
 }
 
 test('findMissingSummons returns friends missing a watched summon, with which ones are missing', () => {
   /**
-   * Given friend A seen with Lucifer only and friend B seen with both Lucifer and Bahamut,
+   * Given friend A offering Lucifer only and friend B offering both Lucifer and Bahamut,
    * When findMissingSummons is called watching Lucifer and Bahamut,
-   * Then only A is returned, with missing = [Bahamut] alongside their stored history.
+   * Then only A is returned, with missing = [Bahamut] alongside their stored record.
    */
   const friendA = friendRecord('A', [LUCIFER]);
   const friends = { 1: friendA, 2: friendRecord('B', [LUCIFER, BAHAMUT]) };
@@ -196,21 +179,21 @@ test('findMissingSummons flags a friend whose best level is below the minimum', 
    * Then only A is flagged, with Hades missing.
    */
   const friends = {
-    1: { ...friendRecord('A', [HADES]), bestLevels: { [HADES]: 230 } },
-    2: { ...friendRecord('B', [HADES]), bestLevels: { [HADES]: 250 } },
+    1: friendRecord('A', [HADES], 1, 230),
+    2: friendRecord('B', [HADES], 1, 250),
   };
   const result = findMissingSummons(friends, [HADES], { [HADES]: 250 });
   assert.deepStrictEqual(result.map(f => [f.name, f.missing]), [['A', [HADES]]]);
 });
 
-test('findMissingSummons flags a friend with no recorded level when a minimum is set', () => {
+test('findMissingSummons flags a friend saved before layouts were tracked', () => {
   /**
-   * Given a friend tracked before levels existed: seen with Hades, but no bestLevels field,
-   * When findMissingSummons is called watching Hades with a minimum level of 250,
-   * Then they are flagged — an unknown level can't be shown to meet the minimum.
+   * Given a friend record from before layouts were tracked: seen with Hades, but no layout field,
+   * When findMissingSummons is called watching Hades,
+   * Then they are flagged, since there is no current layout showing Hades.
    */
-  const friends = { 1: friendRecord('legacy', [HADES]) };
-  assert.deepStrictEqual(findMissingSummons(friends, [HADES], { [HADES]: 250 }).map(f => f.missing), [[HADES]]);
+  const friends = { 1: { name: 'legacy', seenSummons: { [HADES]: 'Hades' }, sightings: 1, lastSeen: 1 } };
+  assert.deepStrictEqual(findMissingSummons(friends, [HADES]).map(f => f.missing), [[HADES]]);
 });
 
 test('groupLayout groups slots by element tab in game order, rows sorted', () => {
@@ -270,11 +253,11 @@ test('mergeFriendHistory replaces the whole layout with a friend\'s Details', ()
    * Then the layout is just slot 6 with Hades Lvl 250 — Details shows every slot, so slot 15 was emptied.
    */
   const userId = '10733230';
-  const hades = { id: '2040090000', level: 250 };
+  const hades = { id: '2040090000', name: 'Hades', level: 250 };
   const friends = {
-    [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: { 6: { id: hades.id, level: 230 }, 15: { id: '2040056000', level: 250 } }, sightings: 1, lastSeen: 1 },
+    [userId]: { name: 'ゆず', layout: { 6: { id: hades.id, level: 230 }, 15: { id: '2040056000', level: 250 } }, sightings: 1, lastSeen: 1 },
   };
-  const details = [{ userId, summonId: hades.id, summonName: 'Hades', level: hades.level, slot: 6 }];
+  const details = [{ userId, summonId: hades.id, summonName: hades.name, level: hades.level, slot: 6 }];
   const result = mergeFriendHistory(friends, details, 2, { fromDetails: true });
   assert.deepStrictEqual(result[userId].layout, { 6: hades });
 });
@@ -288,7 +271,7 @@ test('mergeFriendHistory does not count a friend\'s Details as a sighting', () =
   const userId = '10733230';
   const sightings = 3;
   const lastSeen = 1;
-  const friends = { [userId]: { name: 'ゆず', seenSummons: {}, bestLevels: {}, layout: {}, sightings, lastSeen } };
+  const friends = { [userId]: { name: 'ゆず', layout: {}, sightings, lastSeen } };
   const details = [{ userId, summonId: '2040090000', summonName: 'Hades', level: 250, slot: 6 }];
   const result = mergeFriendHistory(friends, details, 2, { fromDetails: true });
   assert.deepStrictEqual([result[userId].sightings, result[userId].lastSeen], [sightings, lastSeen]);
@@ -302,7 +285,7 @@ test('mergeFriendHistory keeps the stored name when the support has none', () =>
    */
   const userId = '10733230';
   const name = 'ゆず';
-  const friends = { [userId]: { name, seenSummons: {}, bestLevels: {}, layout: {}, sightings: 1, lastSeen: 1 } };
+  const friends = { [userId]: { name, layout: {}, sightings: 1, lastSeen: 1 } };
   const details = [{ userId, summonId: '2040090000', summonName: 'Hades', level: 250, slot: 6 }];
   assert.strictEqual(mergeFriendHistory(friends, details, 2, { fromDetails: true })[userId].name, name);
 });
@@ -351,7 +334,7 @@ test('countSupportStats lists which friends offer each summon, by level', () => 
   const friends = {
     1: { layout: { 15: { id: LUCIFER, level: 250 }, 25: { id: LUCIFER, level: 200 } } },
     2: { layout: { 6: { id: LUCIFER, level: 200 }, 16: { id: BAHAMUT, level: 150 } } },
-    3: friendRecord('no layout', [LUCIFER]),
+    3: { name: 'no layout', seenSummons: { [LUCIFER]: 'Lucifer' }, sightings: 1, lastSeen: 1 },
   };
   assert.deepStrictEqual(countSupportStats(friends), {
     friendCount: 2,
@@ -417,4 +400,16 @@ test('parseFriendList returns nothing for a body that is not JSON', () => {
    */
   const capture = { url: 'https://game.granbluefantasy.jp/friend/friend_list/3?_=1', responseBody: '<html>' };
   assert.deepStrictEqual(parseFriendList(capture), {});
+});
+
+test('findMissingSummons flags a friend whose current layout no longer has a watched summon', () => {
+  /**
+   * Given a friend once seen with Lucifer whose current layout holds only Bahamut,
+   * When findMissingSummons is called watching Lucifer,
+   * Then they are flagged with Lucifer missing.
+   */
+  const friends = {
+    1: { ...friendRecord('swapped', [BAHAMUT]), seenSummons: { [LUCIFER]: 'Lucifer' } },
+  };
+  assert.deepStrictEqual(findMissingSummons(friends, [LUCIFER]).map(f => f.missing), [[LUCIFER]]);
 });

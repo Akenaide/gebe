@@ -1,5 +1,5 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
-import { countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
+import { bestLevels, countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
 import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 import { createWriteQueue } from './src/writeQueue.js';
 
@@ -170,7 +170,7 @@ function deleteButton(userId) {
 
 function renderFriendsSection(container) {
   const allSummons = {};
-  for (const friend of Object.values(friends)) Object.assign(allSummons, friend.seenSummons);
+  for (const friend of Object.values(friends)) for (const { id, name } of Object.values(friend.layout ?? {})) allSummons[id] = name ?? allSummons[id] ?? id;
   // Keep watched summons pickable after "Clear friends", so they can still be un-watched.
   for (const id of watchedSummons) allSummons[id] ??= id;
 
@@ -266,8 +266,9 @@ function renderFriendsSection(container) {
       label.className = 'friend-meta';
       label.textContent = 'missing:';
       el.appendChild(label);
-      // Best level seen tells "has it, but too low" apart from "never seen with it" (—).
-      for (const id of row.missing) el.appendChild(summonTile(id, allSummons[id] ?? id, levelCaption(row.bestLevels?.[id])));
+      // Its level in the current layout tells "has it, but too low" apart from "doesn't offer it" (—).
+      const levels = bestLevels(row.layout);
+      for (const id of row.missing) el.appendChild(summonTile(id, allSummons[id] ?? id, levelCaption(levels[id])));
     }
     card.append(el, supportGrid(row, allSummons));
     list.appendChild(card);
@@ -280,7 +281,7 @@ let statsPick = null; // {id, level}: the level clicked to list who offers it
 
 function renderStatsSection(container) {
   const allSummons = {};
-  for (const friend of Object.values(friends)) Object.assign(allSummons, friend.seenSummons);
+  for (const friend of Object.values(friends)) for (const { id, name } of Object.values(friend.layout ?? {})) allSummons[id] = name ?? allSummons[id] ?? id;
   const nameOf = id => allSummons[id] ?? id;
   const { friendCount, summons } = countSupportStats(friends);
   const sortValue = { friends: row => row.friendCount, name: row => nameOf(row.id) };

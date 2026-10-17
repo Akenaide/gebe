@@ -40,28 +40,35 @@ export function mergeFriendHistory(friends, supporters, seenAt, { fromDetails = 
     if (!updated.has(userId)) {
       updated.add(userId);
       const known = friends[userId];
+      // Only the current layout is kept: a summon the friend swapped out no longer counts. Records saved
+      // with the old seenSummons/bestLevels history drop it here.
       merged[userId] = {
         name: name ?? known?.name,
-        seenSummons: { ...known?.seenSummons },
-        // Records saved before levels were tracked have no bestLevels.
-        bestLevels: { ...known?.bestLevels },
         // Both a supporter page and Details show every slot, so the capture is the whole layout.
         layout: {},
         sightings: (known?.sightings ?? 0) + (fromDetails ? 0 : 1),
         lastSeen: fromDetails ? known?.lastSeen : seenAt,
       };
     }
-    merged[userId].seenSummons[summonId] = summonName;
-    merged[userId].bestLevels[summonId] = Math.max(merged[userId].bestLevels[summonId] ?? 0, level);
-    merged[userId].layout[slot] = { id: summonId, level };
+    merged[userId].layout[slot] = { id: summonId, name: summonName, level };
   }
   return merged;
 }
 
+// A summon in several slots counts once, at its highest level; friends saved before layouts were tracked have none.
+export function bestLevels(layout = {}) {
+  const best = {};
+  for (const { id, level } of Object.values(layout)) best[id] = Math.max(best[id] ?? 0, level);
+  return best;
+}
+
+// From each friend's current layout: a summon they swapped out is missing again.
 export function findMissingSummons(friends, watchedIds, minLevels = {}) {
-  const meetsWatch = (friend, id) => id in friend.seenSummons && (friend.bestLevels?.[id] ?? 0) >= (minLevels[id] ?? 0);
   return Object.entries(friends)
-    .map(([userId, friend]) => ({ userId, ...friend, missing: watchedIds.filter(id => !meetsWatch(friend, id)) }))
+    .map(([userId, friend]) => {
+      const best = bestLevels(friend.layout);
+      return { userId, ...friend, missing: watchedIds.filter(id => !(id in best && best[id] >= (minLevels[id] ?? 0))) };
+    })
     .filter(friend => friend.missing.length > 0)
     .sort((a, b) => b.sightings - a.sightings);
 }
@@ -115,10 +122,7 @@ export function countSupportStats(friends) {
   const withLayout = Object.entries(friends).filter(([, friend]) => friend.layout && Object.keys(friend.layout).length);
   const stats = {};
   for (const [userId, friend] of withLayout) {
-    // A summon in several slots counts once, at its highest level.
-    const best = {};
-    for (const { id, level } of Object.values(friend.layout)) best[id] = Math.max(best[id] ?? 0, level);
-    for (const [id, level] of Object.entries(best)) {
+    for (const [id, level] of Object.entries(bestLevels(friend.layout))) {
       stats[id] ??= { id, friendCount: 0, levels: {} };
       stats[id].friendCount++;
       (stats[id].levels[level] ??= []).push(userId);
