@@ -1,3 +1,5 @@
+import { ELEMENTS } from './elements.js';
+
 const BLOCK_START = '<div class="btn-supporter lis-supporter"';
 
 // The response is {data: "<URL-encoded HTML>"}; no DOMParser in node tests, so read it with regexes.
@@ -74,7 +76,7 @@ export function findMissingSummons(friends, watchedIds, minLevels = {}) {
 }
 
 // Element tab codes from the slot's ones digit, listed in the game's tab order.
-const TABS = [[1, 'Fire'], [2, 'Water'], [3, 'Earth'], [4, 'Wind'], [5, 'Light'], [6, 'Dark'], [0, 'Misc']];
+const TABS = [...Object.entries(ELEMENTS).map(([code, element]) => [Number(code), element]), [0, 'Misc']];
 
 export function groupLayout(layout) {
   const slots = Object.keys(layout).map(Number).sort((a, b) => a - b);

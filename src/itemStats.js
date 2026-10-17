@@ -1,5 +1,4 @@
-// Hardcoded rather than read from the response's own `sort` map, which isn't trusted as the source of truth.
-const ATTRIBUTE_NAMES = { 1: 'Fire', 2: 'Water', 3: 'Earth', 4: 'Wind', 5: 'Light', 6: 'Dark' };
+import { ELEMENTS } from './elements.js';
 
 export function countCrateDuplicates(crate, itemKindId) {
   const counts = new Map();
@@ -13,7 +12,7 @@ export function countCrateDuplicates(crate, itemKindId) {
       counts.set(key, {
         regular_id: key,
         item_name: item.item_name,
-        attribute_name: ATTRIBUTE_NAMES[item.attribute] ?? null,
+        attribute_name: ELEMENTS[item.attribute] ?? null,
         count: 1,
       });
     }

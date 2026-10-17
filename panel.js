@@ -2,6 +2,7 @@ import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSection
 import { bestLevels, countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
 import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 import { createWriteQueue } from './src/writeQueue.js';
+import { ELEMENTS } from './src/elements.js';
 
 const enqueueUpdate = createWriteQueue(chrome.storage.local);
 
@@ -15,7 +16,6 @@ function wikiUrl(itemName) {
   return `https://gbf.wiki/${encodeURIComponent(itemName.replace(/ /g, '_'))}`;
 }
 
-const ATTRIBUTES = ['Fire', 'Water', 'Earth', 'Wind', 'Light', 'Dark'];
 let selectedAttribute = null;
 const ITEM_KEYS = ['crate', 'ownedSummons', 'ownedWeapons'];
 let items = { crate: {}, ownedSummons: {}, ownedWeapons: {} };
@@ -34,7 +34,7 @@ let showHiddenFriends = false;
 
 function renderFilterBar(container) {
   container.innerHTML = '';
-  const options = [null, ...ATTRIBUTES];
+  const options = [null, ...Object.values(ELEMENTS)];
   for (const attr of options) {
     const btn = document.createElement('button');
     btn.textContent = attr ?? 'All';
