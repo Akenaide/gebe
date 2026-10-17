@@ -386,3 +386,35 @@ test('findMissingDetails groups friends Gebe has no record of by friend list pag
   ]);
 });
 
+
+test('parseSupporters skips a support block it cannot read and keeps the others', () => {
+  /**
+   * Given a supporter page whose first friend block has no summon level, followed by a readable one,
+   * When parseSupporters is called,
+   * Then it returns only the readable support.
+   */
+  const unreadable = supporterBlock({ userId: '10733230', name: 'ゆず', summonId: '2040114000', summonName: 'Kaguya' }).replace(/Lvl \d+/, '');
+  const readable = { userId: '11279725', name: 'Haaselia', summonId: '2040056000', summonName: 'Lucifer', level: 250, slot: 15 };
+  const capture = supporterCapture([unreadable, supporterBlock(readable)]);
+  assert.deepStrictEqual(parseSupporters(capture), [readable]);
+});
+
+test('parseFixedSummons returns nothing for a body that is not JSON', () => {
+  /**
+   * Given a friend_fixed_summon capture whose body is not JSON,
+   * When parseFixedSummons is called,
+   * Then it returns no supports.
+   */
+  const capture = { url: 'https://game.granbluefantasy.jp/friend/friend_fixed_summon/1358003?_=1', responseBody: '<html>' };
+  assert.deepStrictEqual(parseFixedSummons(capture), []);
+});
+
+test('parseFriendList returns nothing for a body that is not JSON', () => {
+  /**
+   * Given a friend_list capture whose body is not JSON,
+   * When parseFriendList is called,
+   * Then it returns no friends.
+   */
+  const capture = { url: 'https://game.granbluefantasy.jp/friend/friend_list/3?_=1', responseBody: '<html>' };
+  assert.deepStrictEqual(parseFriendList(capture), {});
+});

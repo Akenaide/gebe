@@ -12,16 +12,21 @@ export function parseSupporters(capture) {
   for (const block of html.split(BLOCK_START).slice(1)) {
     // The last block runs into the page's JS templates, which also mention "ico-friend".
     if (!block.includes('class="prt-supporter-name ico-friend"')) continue;
-    supporters.push({
-      userId: block.match(/data-supporter-user-id="(\d+)"/)[1],
-      name: block.match(/<span class="txt-supporter-name">([^<]*)</)[1],
-      // Uncapped art is "2040056000_04"; the id before "_" is the summon.
-      summonId: block.match(/data-image="(\d+)/)[1],
-      summonName: block.match(/<span class="js-summon-name">([^<]*)</)[1],
-      level: Number(block.match(/<span class="txt-summon-level">Lvl (\d+)/)[1]),
-      // row * 10 + element tab (0 Misc, 1 Fire … 6 Dark), e.g. 15 = Light, second row.
-      slot: Number(block.match(/data-attribute="(\d+)"/)[1]),
-    });
+    // A block missing a field throws on its match; skip that support, not the whole page.
+    try {
+      supporters.push({
+        userId: block.match(/data-supporter-user-id="(\d+)"/)[1],
+        name: block.match(/<span class="txt-supporter-name">([^<]*)</)[1],
+        // Uncapped art is "2040056000_04"; the id before "_" is the summon.
+        summonId: block.match(/data-image="(\d+)/)[1],
+        summonName: block.match(/<span class="js-summon-name">([^<]*)</)[1],
+        level: Number(block.match(/<span class="txt-summon-level">Lvl (\d+)/)[1]),
+        // row * 10 + element tab (0 Misc, 1 Fire … 6 Dark), e.g. 15 = Light, second row.
+        slot: Number(block.match(/data-attribute="(\d+)"/)[1]),
+      });
+    } catch {
+      continue;
+    }
   }
   return supporters;
 }
@@ -75,7 +80,13 @@ export function groupLayout(layout) {
 // A friend's Details: {fixed_summon_list: [[{fixed_summon_info, fix_status}]]}, one list per element tab.
 export function parseFixedSummons(capture) {
   const userId = new URL(capture.url).pathname.split('/').pop();
-  return JSON.parse(capture.responseBody).fixed_summon_list.flat()
+  let lists;
+  try {
+    lists = JSON.parse(capture.responseBody).fixed_summon_list ?? [];
+  } catch {
+    return [];
+  }
+  return lists.flat()
     .filter(({ fix_status }) => fix_status === 1)
     .map(({ fixed_summon_info: info }) => ({
       userId,
@@ -90,7 +101,12 @@ export function parseFixedSummons(capture) {
 // Details has no friend name, so it's taken from the friend list page the player opened it from.
 // The page tells the player where to find a friend whose Details is missing.
 export function parseFriendList(capture) {
-  const { list, current: page } = JSON.parse(capture.responseBody);
+  let list, page;
+  try {
+    ({ list = [], current: page } = JSON.parse(capture.responseBody));
+  } catch {
+    return {};
+  }
   return Object.fromEntries(list.map(({ id, name }) => [id, { name, page }]));
 }
 
