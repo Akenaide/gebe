@@ -35,8 +35,8 @@ const NOT_ACTIONS = new Set([9, 12, 13]);
 export function mergeRaidStart(stored, started) {
   if (stored?.raidId !== started.raidId) return started;
   const players = [...new Set([...stored.players, ...started.players])];
-  const { log, lastActionAt, enteredAt } = stored;
-  return { ...started, players, log, lastActionAt, enteredAt };
+  const { log, lastActionAt, enteredAt, honors } = stored;
+  return { ...started, players, log, lastActionAt, enteredAt, honors };
 }
 
 function logText(html) {
@@ -100,7 +100,11 @@ export function backfillRaidLog(raid, lines) {
 
 // The game's page state (stage.pJsnData), which it keeps current from the raid socket; read by devtools.js.
 export function applyPageState(raid, page) {
-  // A player has no point until the game's first MVP update after they join.
-  const honors = Object.fromEntries(page.points.filter(([, point]) => point != null).map(([userId, point]) => [userId, Number(point)]));
+  // A player has no point until the game's first MVP update after they join or after a reload;
+  // honors never go down during a raid, so the higher of stored and page wins.
+  const honors = { ...raid.honors };
+  for (const [userId, point] of page.points) {
+    if (point != null) honors[userId] = Math.max(honors[userId] ?? 0, Number(point));
+  }
   return { ...raid, hp: Number(page.hp), honors };
 }

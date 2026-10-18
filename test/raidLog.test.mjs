@@ -51,7 +51,7 @@ test('parseRaidStart returns null for a body that is not JSON', () => {
 });
 
 function emptyRaid() {
-  return { raidId: '47030438006', battleId: '5EF11133', boss: 'Lvl 150 Proto Bahamut', hp: 539429351, hpmax: 1200000000, members: {}, players: [], log: [], lastActionAt: {}, enteredAt: 0 };
+  return { raidId: '47030438006', battleId: '5EF11133', boss: 'Lvl 150 Proto Bahamut', hp: 539429351, hpmax: 1200000000, members: {}, players: [], log: [], lastActionAt: {}, honors: {}, enteredAt: 0 };
 }
 
 test('mergeRaidStart keeps the log of the same raid after a page reload', () => {
@@ -254,4 +254,29 @@ test('applyPageState takes the boss HP from the page', () => {
   const hp = 442551141;
   const raid = emptyRaid();
   assert.strictEqual(applyPageState(raid, { raidId: raid.raidId, hp: String(hp), points: [] }).hp, hp);
+});
+
+test('mergeRaidStart keeps the honors after a page reload', () => {
+  /**
+   * Given a stored raid where player 2 has 3370444 honors,
+   * and a new start.json for the same raid (the page was reloaded), which holds no honors,
+   * When mergeRaidStart is called,
+   * Then honors stay { 2: 3370444 }.
+   */
+  const honors = { 2: 3370444 };
+  const merged = mergeRaidStart({ ...emptyRaid(), honors }, emptyRaid());
+  assert.deepStrictEqual(merged.honors, honors);
+});
+
+test('applyPageState keeps stored honors the reloaded page has not caught up with', () => {
+  /**
+   * Given a stored raid where player 1 has 3370444 honors and player 2 has 285877,
+   * and the page just after a reload, before the game's first MVP update: player 1 null, player 2 0,
+   * When applyPageState is called with it,
+   * Then honors stay { 1: 3370444, 2: 285877 }, since honors never go down during a raid.
+   */
+  const honors = { 1: 3370444, 2: 285877 };
+  const raid = { ...emptyRaid(), honors };
+  const page = { raidId: raid.raidId, hp: raid.hp, points: [['1', null], ['2', 0]] };
+  assert.deepStrictEqual(applyPageState(raid, page).honors, honors);
 });
