@@ -21,7 +21,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 
 - `devtools.js` (the `devtools_page`) captures game requests via `chrome.devtools.network.onRequestFinished`, which only fires while DevTools is open on that tab. It reduces each capture to the storage keys below; raw captures are saved only while capturing is on. Every storage read-modify-write and remove, from the panel too, takes one Web Lock (`src/writeQueue.js`), shared by the panel and every open DevTools, since GBF fires concurrent requests; an update that throws is dropped, not left holding the lock.
 - `panel.js` renders the storage keys and re-renders on `chrome.storage.onChanged`.
-- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests. `src/raidLog.js` follows the raid you're in: WebSocket frames fire no `onRequestFinished`, so `devtools.js` reads the raid socket's frames from `chrome.devtools.network.getHAR()` every 2 s (only sockets opened while DevTools is open are in it), until the player opens another game page or the socket sends nothing for 2 minutes. When the player opens the game's battle log (`multi_battle_log`), its lines fill in the actions the socket missed.
+- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests. `src/raidLog.js` follows the raid you're in: `start.json` starts it, and each time the player opens the game's battle log (`multi_battle_log`) its lines are merged into the raid log. Every second, `devtools.js` reads honors and boss HP from the game's page state (`stage.pJsnData`, which the game keeps current from the raid socket) with `chrome.devtools.inspectedWindow.eval()`. The raid socket itself isn't read: polling `getHAR()` for its frames is suspected of leaking memory, and that version lives on the `live-raid-log` branch.
 
 ## Storage keys
 
@@ -36,6 +36,6 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `watchedSummons`, `summonMinLevels` | panel | — |
 | `assistRaids` (`{"<tab>/<questId>": {raids, receivedAt}}`, each backup list replaced on its poll; hidden after 5 min) | `devtools.js` | Clear raids |
 | `raidTargetHp` (`{questId: percent}`) | panel | — |
-| `currentRaid` (from `start.json`, then the raid socket's frames; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
+| `currentRaid` (from `start.json`, then the battle log and the page state; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
 
 Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Storage isn't capped in code: the manifest requests `unlimitedStorage`.

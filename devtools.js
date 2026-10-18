@@ -6,9 +6,6 @@ import * as raidLog from './src/raidLog.js';
 import { createWriteQueue } from './src/writeQueue.js';
 
 const { enqueueUpdate } = createWriteQueue(chrome.storage.local);
-// The raid whose socket frames are being followed, and the newest frame already queued for storage.
-let followedRaidId = null;
-let lastPolledFrameTime = 0;
 
 chrome.devtools.network.onRequestFinished.addListener(request => {
   if (!shouldCapture(request.request.url)) return;
@@ -36,20 +33,15 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     }
     if (capture.url.includes('/rest/multiraid/start.json')) {
       const started = raidLog.parseRaidStart(capture, Date.now() / 1000);
-      if (started) {
-        // Counts as activity, so the quiet timer starts before the socket's first frame.
-        lastPolledFrameTime = Date.now() / 1000;
-        followedRaidId = started.raidId;
-        enqueueUpdate('currentRaid', stored => raidLog.mergeRaidStart(stored, started));
-      }
+      if (started) enqueueUpdate('currentRaid', stored => raidLog.mergeRaidStart(stored, started));
     }
-    // The game's own battle log, fetched when the player opens it: fills in actions from before entering or during a reload.
+    // The game's own battle log, fetched when the player opens it, is the raid log's only source:
+    // reading the raid socket meant polling getHAR(), suspected of leaking memory (see the live-raid-log branch).
     if (capture.url.includes('/rest/multiraid/multi_battle_log')) {
       const raidId = capture.requestBody?.match(/"raid_id":"?(\d+)/)?.[1];
       const lines = raidLog.parseBattleLog(capture, Date.now() / 1000);
       if (raidId && lines.length) enqueueUpdate('currentRaid', raid => (raid?.raidId === raidId ? raidLog.backfillRaidLog(raid, lines) : raid));
     }
-    if (raidLog.leavesRaid(capture.url)) followedRaidId = null;
     if (capture.url.includes('/friend/friend_list/')) {
       const listed = parseFriendList(capture);
       // The list is paged, so each page adds to the stored one.
@@ -70,22 +62,20 @@ chrome.storage.onChanged.addListener(changes => {
   if (changes.capturing) capturing = changes.capturing.newValue;
 });
 
-// WebSocket frames fire no onRequestFinished, so the raid socket is read from DevTools' network log on a timer.
-// Only sockets opened while DevTools is open are in that log.
+// The game keeps honors and boss HP current in its page state, from the raid socket; reading a few fields is far cheaper than getHAR().
+const PAGE_STATE = `(() => {
+  const raid = window.stage?.pJsnData;
+  if (!raid?.twitter || !raid.multi_raid_member_info) return null;
+  return { raidId: String(raid.twitter.raid_id), hp: raid.boss.param[0].hp, points: raid.multi_raid_member_info.map(m => [m.user_id, m.point]) };
+})()`;
+let lastPageState = null;
 setInterval(() => {
-  if (!followedRaidId) return;
-  const raidId = followedRaidId;
-  chrome.devtools.network.getHAR(har => {
-    const messages = raidLog.raidSocketMessages(har.entries, raidId);
-    const newest = messages.at(-1)?.time ?? 0;
-    if (newest <= lastPolledFrameTime) {
-      // Left without a page load (a closed tab, a lost connection): stop reading the growing network log.
-      if (raidLog.raidSocketQuiet(lastPolledFrameTime, Date.now() / 1000) && followedRaidId === raidId) followedRaidId = null;
-      return;
-    }
-    lastPolledFrameTime = newest;
-    enqueueUpdate('currentRaid', raid => (raid?.raidId === raidId ? raidLog.applyRaidFrames(raid, messages) : raid));
+  chrome.devtools.inspectedWindow.eval(PAGE_STATE, page => {
+    // Unchanged (or a stale raid's state after leaving it): nothing to write.
+    if (!page || JSON.stringify(page) === lastPageState) return;
+    lastPageState = JSON.stringify(page);
+    enqueueUpdate('currentRaid', raid => (raid?.raidId === page.raidId ? raidLog.applyPageState(raid, page) : raid));
   });
-}, 2000);
+}, 1000);
 
 chrome.devtools.panels.create('Gebe', '', 'panel.html');

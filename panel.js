@@ -369,7 +369,7 @@ function renderStatsSection(container) {
 // The game's log types: 1 normal attack, 2 charge attack, 12/13 boss overdrive/break.
 const LOG_TYPE_CLASSES = { 1: 'log-attack', 2: 'log-charge', 12: 'log-boss', 13: 'log-boss' };
 
-// Times are in seconds, like the socket frames.
+// Times are in seconds, like the battle log lines.
 function durationSince(time) {
   const seconds = Math.max(0, Math.round(Date.now() / 1000 - time));
   return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`;
@@ -377,11 +377,11 @@ function durationSince(time) {
 
 function renderCurrentRaid(container) {
   if (!currentRaid) {
-    container.innerHTML = '<h3>Current raid</h3><div class="meta">Enter a raid with DevTools open.</div>';
+    container.innerHTML = '<h3>Current raid</h3><div class="meta">Enter a raid with DevTools open, then open the game\'s battle log.</div>';
     return;
   }
   const hpPercent = ((100 * currentRaid.hp) / currentRaid.hpmax).toFixed(1);
-  // The card is rebuilt on every poll; keep the log where the player scrolled it.
+  // The card is rebuilt on every update; keep the log where the player scrolled it.
   const logScroll = container.querySelector('.raid-log')?.scrollTop ?? 0;
   container.innerHTML = `<h3></h3>
     <div class="meta"></div>
@@ -397,13 +397,16 @@ function renderCurrentRaid(container) {
   const table = container.querySelector('table');
   tableHeader(table, ['#', 'Player', 'Honors', 'Last action']);
   const body = table.createTBody();
-  for (const entry of currentRaid.mvp) {
+  const honors = currentRaid.honors ?? {};
+  // Ranked like the game's MVP list; players with no honors yet go last.
+  const ranked = [...new Set([...players, ...Object.keys(honors)])].toSorted((a, b) => (honors[b] ?? -1) - (honors[a] ?? -1));
+  for (const [index, userId] of ranked.entries()) {
     const row = body.insertRow();
-    const lastAction = currentRaid.lastActionAt?.[entry.userId];
-    // A player with no action yet is counted from when you entered; earlier actions aren't in the socket.
+    const lastAction = currentRaid.lastActionAt?.[userId];
+    // A player with no action yet is counted from when you entered; the battle log may not have been opened since.
     const idle = lastAction ? `${durationSince(lastAction)} ago` : `none for ${durationSince(currentRaid.enteredAt)}`;
-    for (const value of [entry.rank, nameOf(entry.userId), entry.points.toLocaleString(), idle]) row.insertCell().textContent = value;
-    row.style.color = colorOf(entry.userId);
+    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', idle]) row.insertCell().textContent = value;
+    row.style.color = colorOf(userId);
   }
   const log = container.querySelector('.raid-log');
   for (const line of currentRaid.log.toReversed()) {
@@ -413,7 +416,7 @@ function renderCurrentRaid(container) {
     if (row.className !== 'log-boss') row.style.color = colorOf(line.userId);
     const time = document.createElement('span');
     time.className = 'meta';
-    // HAR frame times are in seconds; a line filled in from the battle log only has its minute.
+    // A battle log line only has its minute.
     const date = new Date(line.time * 1000);
     time.textContent = line.approximate ? `~${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ` : `${date.toLocaleTimeString()} `;
     row.appendChild(time);
@@ -481,7 +484,7 @@ function renderAssistList(block, list, target) {
 document.getElementById('clear-raids').addEventListener('click', () => enqueueRemove('assistRaids'));
 // No poll arrives once the backup screen is left, so re-check ages on a timer.
 setInterval(() => renderAssistSection(document.getElementById('assist-section')), 30_000);
-// Keeps the "Last action" durations current between socket updates.
+// Keeps the "Last action" durations current between battle log opens.
 setInterval(() => renderCurrentRaid(document.getElementById('current-raid-section')), 5000);
 
 function render() {

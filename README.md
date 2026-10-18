@@ -42,7 +42,7 @@ A table of every support your friends offer, sortable by name or by how many fri
 ### Raids
 
 1. **Backup requests:** open the game's backup screen. Each list it polls shows every request's boss HP%, host, members and time left. Set a **Target HP%** for a quest to sort its requests by how close they are, the closest one highlighted. A list stops updating when you leave the backup screen and is hidden after 5 minutes; **Clear raids** wipes them all.
-2. **Current raid:** enter a raid with DevTools open. Gebe shows the boss HP%, the battle ID, the MVP ranking with how long since each player last acted, and the raid log. Actions from before you opened DevTools aren't in it: open the game's battle log to fill them in, timed to the minute (`~`).
+2. **Current raid:** enter a raid with DevTools open. Gebe shows the boss HP%, the battle ID, each player's honors and how long since they last acted, and the raid log. HP and honors update every second; the raid log and last actions only when you open the game's battle log, timed to the minute (`~`).
 
 ## Development
 
