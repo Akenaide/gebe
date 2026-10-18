@@ -369,11 +369,13 @@ function renderStatsSection(container) {
 // The game's log types: 1 normal attack, 2 charge attack, 12/13 boss overdrive/break.
 const LOG_TYPE_CLASSES = { 1: 'log-attack', 2: 'log-charge', 12: 'log-boss', 13: 'log-boss' };
 
-// Times are in seconds, like the battle log lines.
-function durationSince(time) {
-  const seconds = Math.max(0, Math.round(Date.now() / 1000 - time));
-  return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`;
+// Times are in seconds; a battle log line only has its minute.
+function minuteTime(time) {
+  return `~${new Date(time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
+
+// The log as last drawn: honors change every second, but the log only when the battle log is opened.
+let renderedLog = null;
 
 function renderCurrentRaid(container) {
   if (!currentRaid) {
@@ -381,20 +383,22 @@ function renderCurrentRaid(container) {
     return;
   }
   const hpPercent = ((100 * currentRaid.hp) / currentRaid.hpmax).toFixed(1);
-  // The card is rebuilt on every update; keep the log where the player scrolled it.
-  const logScroll = container.querySelector('.raid-log')?.scrollTop ?? 0;
-  container.innerHTML = `<h3></h3>
-    <div class="meta"></div>
-    <table class="stats-table"></table>
-    <div class="raid-log"></div>`;
+  if (!container.querySelector('.raid-log')) {
+    container.innerHTML = `<h3></h3>
+      <div class="meta"></div>
+      <table class="stats-table"></table>
+      <div class="raid-log"></div>`;
+    renderedLog = null;
+  }
   // Names and log lines come from other players, so everything goes in as text, never HTML.
   container.querySelector('h3').textContent = `${currentRaid.boss}: ${hpPercent}%`;
-  container.querySelector('.meta').textContent = `Battle ID ${currentRaid.battleId}`;
+  container.querySelector('.meta').textContent = `Battle ID ${currentRaid.battleId} · entered ${new Date(currentRaid.enteredAt * 1000).toLocaleTimeString()}`;
   const nameOf = userId => currentRaid.members[userId] ?? userId;
   // Golden-angle hues keep players who joined one after another far apart on the color wheel.
   const players = currentRaid.players ?? [];
   const colorOf = userId => (players.includes(userId) ? `hsl(${(players.indexOf(userId) * 137.5) % 360} 75% 38%)` : '');
   const table = container.querySelector('table');
+  table.replaceChildren();
   tableHeader(table, ['#', 'Player', 'Honors', 'Last action']);
   const body = table.createTBody();
   const honors = currentRaid.honors ?? {};
@@ -403,12 +407,16 @@ function renderCurrentRaid(container) {
   for (const [index, userId] of ranked.entries()) {
     const row = body.insertRow();
     const lastAction = currentRaid.lastActionAt?.[userId];
-    // A player with no action yet is counted from when you entered; the battle log may not have been opened since.
-    const idle = lastAction ? `${durationSince(lastAction)} ago` : `none for ${durationSince(currentRaid.enteredAt)}`;
-    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', idle]) row.insertCell().textContent = value;
+    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', lastAction ? minuteTime(lastAction) : '']) row.insertCell().textContent = value;
     row.style.color = colorOf(userId);
   }
+  const logKey = JSON.stringify(currentRaid.log);
+  if (logKey === renderedLog) return;
+  renderedLog = logKey;
   const log = container.querySelector('.raid-log');
+  // Rebuilding keeps the log where the player scrolled it.
+  const logScroll = log.scrollTop;
+  log.replaceChildren();
   for (const line of currentRaid.log.toReversed()) {
     const row = document.createElement('div');
     row.className = LOG_TYPE_CLASSES[line.type] ?? '';
@@ -416,9 +424,8 @@ function renderCurrentRaid(container) {
     if (row.className !== 'log-boss') row.style.color = colorOf(line.userId);
     const time = document.createElement('span');
     time.className = 'meta';
-    // A battle log line only has its minute.
-    const date = new Date(line.time * 1000);
-    time.textContent = line.approximate ? `~${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ` : `${date.toLocaleTimeString()} `;
+    // Lines from before 1.7 came from the socket, with the exact second.
+    time.textContent = line.approximate ? `${minuteTime(line.time)} ` : `${new Date(line.time * 1000).toLocaleTimeString()} `;
     row.appendChild(time);
     // Grouped numbers (damage, honors) are put in bold; split on them so the rest stays plain text.
     for (const [index, part] of line.text.split(/(\d{1,3}(?:,\d{3})+)/).entries()) {
@@ -469,6 +476,7 @@ function renderAssistList(block, list, target) {
   // Gebe only sees a list while the game's backup screen is open and polling it.
   container.innerHTML = `<div class="meta">Received ${new Date(list.receivedAt).toLocaleTimeString()}</div><table class="stats-table"></table>`;
   const table = container.querySelector('table');
+  table.replaceChildren();
   tableHeader(table, ['HP%', 'Host', 'Members', 'Time left']);
   const body = table.createTBody();
   for (const [index, raid] of raids.entries()) {
@@ -484,8 +492,6 @@ function renderAssistList(block, list, target) {
 document.getElementById('clear-raids').addEventListener('click', () => enqueueRemove('assistRaids'));
 // No poll arrives once the backup screen is left, so re-check ages on a timer.
 setInterval(() => renderAssistSection(document.getElementById('assist-section')), 30_000);
-// Keeps the "Last action" durations current between battle log opens.
-setInterval(() => renderCurrentRaid(document.getElementById('current-raid-section')), 5000);
 
 function render() {
   renderFilterBar(document.getElementById('attribute-filter'));

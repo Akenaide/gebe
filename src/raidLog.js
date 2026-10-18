@@ -27,7 +27,7 @@ export function parseRaidStart(capture, now) {
 }
 
 // shortcut: the log is rewritten to storage on each battle log open, so only the newest lines are kept; raise it if long raids lose lines you need.
-export const RAID_LOG_LIMIT = 200;
+export const RAID_LOG_LIMIT = 500;
 // Log types that aren't a player acting: 9 joined, 12 boss overdrive, 13 boss break.
 const NOT_ACTIONS = new Set([9, 12, 13]);
 
