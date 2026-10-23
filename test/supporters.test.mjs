@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseSupporters, parseFixedSummons, parseFriendList, findMissingDetails, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats } from '../src/supporters.js';
+import { parseSupporters, parseFixedSummons, parseFriendList, findMissingDetails, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats, offersAll } from '../src/supporters.js';
 
 // Same shape as a real /quest/content/supporter_raid/ block, trimmed to the fields we read.
 function supporterBlock({ userId, name, summonId, summonName, level = 150, slot = 0, friend = true }) {
@@ -65,6 +65,25 @@ test('parseSupporters ignores ico-friend text in the page templates after the la
     template,
   );
   assert.deepStrictEqual(parseSupporters(capture), []);
+});
+
+test('parseSupporters returns only non-friend supports when asked for them', () => {
+  /**
+   * Given a supporter_raid capture with one friend support and one non-friend support (Bahamut Lvl 200
+   * in slot 6), the non-friend's block followed by the page's template mentioning "ico-friend",
+   * When parseSupporters is called with { friend: false },
+   * Then it returns only the non-friend's support.
+   */
+  const template = '<script type="text/template"><div class="prt-supporter-name<% if (supporter.friend_flg) { %> ico-friend<% }%>"></div></script>';
+  const stranger = { userId: '21342208', name: 'stranger', summonId: '2040003000', summonName: 'Bahamut', level: 200, slot: 6 };
+  const capture = supporterCapture(
+    [
+      supporterBlock({ userId: '10733230', name: 'ゆず', summonId: '2040114000', summonName: 'Kaguya' }),
+      supporterBlock({ ...stranger, friend: false }),
+    ],
+    template,
+  );
+  assert.deepStrictEqual(parseSupporters(capture, { friend: false }), [stranger]);
 });
 
 test('parseSupporters returns nothing for a response without supporter HTML', () => {
@@ -412,4 +431,30 @@ test('findMissingSummons flags a friend whose current layout no longer has a wat
     1: { ...friendRecord('swapped', [BAHAMUT]), seenSummons: { [LUCIFER]: 'Lucifer' } },
   };
   assert.deepStrictEqual(findMissingSummons(friends, [LUCIFER]).map(f => f.missing), [[LUCIFER]]);
+});
+
+test('offersAll is true only when the layout has every picked summon', () => {
+  /**
+   * Given a layout with Kaguya and Lucifer,
+   * When offersAll is asked about Kaguya + Lucifer, then about Kaguya + Bahamut,
+   * Then the first is true and the second false, since Bahamut is missing.
+   */
+  const kaguya = '2040114000';
+  const lucifer = '2040056000';
+  const layout = { 20: { id: kaguya, level: 150 }, 15: { id: lucifer, level: 250 } };
+  assert.strictEqual(offersAll(layout, [kaguya, lucifer]), true);
+  assert.strictEqual(offersAll(layout, [kaguya, '2040003000']), false);
+});
+
+test('offersAll is false when a picked summon is below its minimum level', () => {
+  /**
+   * Given a layout with Lucifer at level 200,
+   * When offersAll is asked for Lucifer with a minimum of 250, then of 200,
+   * Then the first is false (too low) and the second true.
+   */
+  const lucifer = '2040056000';
+  const level = 200;
+  const layout = { 15: { id: lucifer, level } };
+  assert.strictEqual(offersAll(layout, [lucifer], { [lucifer]: 250 }), false);
+  assert.strictEqual(offersAll(layout, [lucifer], { [lucifer]: level }), true);
 });

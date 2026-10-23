@@ -1,5 +1,5 @@
 import { countCrateDuplicates, countInventoryDuplicates, combineDuplicateSections } from './src/itemStats.js';
-import { bestLevels, countSupportStats, findMissingDetails, findMissingSummons, groupLayout } from './src/supporters.js';
+import { bestLevels, countSupportStats, findMissingDetails, findMissingSummons, groupLayout, offersAll } from './src/supporters.js';
 import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 import { createWriteQueue } from './src/writeQueue.js';
 import { ELEMENTS } from './src/elements.js';
@@ -21,6 +21,7 @@ const ITEM_KEYS = ['crate', 'ownedSummons', 'ownedWeapons'];
 let items = { crate: {}, ownedSummons: {}, ownedWeapons: {} };
 let friends = {};
 let friendList = {};
+let nonFriends = {};
 let watchedSummons = [];
 let summonMinLevels = {};
 let hiddenFriends = {};
@@ -31,6 +32,9 @@ let raidTargetHp = {};
 const ASSIST_MAX_AGE = 5 * 60_000;
 let showAllFriends = false;
 let showHiddenFriends = false;
+// Summons a non-friend must all offer, at these min levels, to be listed; kept until DevTools closes.
+let nonFriendFilter = [];
+let nonFriendMinLevels = {};
 
 function renderFilterBar(container) {
   container.innerHTML = '';
@@ -142,19 +146,19 @@ function friendName(userId) {
   return friends[userId]?.name ?? friendList[userId]?.name ?? userId;
 }
 
-function profileLink(userId) {
+function profileLink(userId, name = friendName(userId)) {
   const link = document.createElement('a');
   link.href = `https://game.granbluefantasy.jp/#profile/${userId}`;
   link.target = '_blank';
   link.rel = 'noopener';
-  link.textContent = friendName(userId);
+  link.textContent = name;
   return link;
 }
 
 // Summon names from friends' layouts; a layout saved before names were stored falls back to the id.
-function summonNames() {
+function summonNames(store = friends) {
   const names = {};
-  for (const friend of Object.values(friends)) for (const { id, name } of Object.values(friend.layout ?? {})) names[id] = name ?? names[id] ?? id;
+  for (const friend of Object.values(store)) for (const { id, name } of Object.values(friend.layout ?? {})) names[id] = name ?? names[id] ?? id;
   return names;
 }
 
@@ -210,6 +214,29 @@ function deleteButton(userId) {
   return button;
 }
 
+// Click a summon to pick it; a picked one gets a min Lvl input under it.
+function fillSummonPicker(picker, allSummons, picked, minLevels, { toggle, setMinLevel }) {
+  for (const [id, name] of Object.entries(allSummons).sort((a, b) => a[1].localeCompare(b[1]))) {
+    const thumb = summonThumb(id, name);
+    thumb.addEventListener('click', () => toggle(id));
+    if (!picked.includes(id)) {
+      picker.appendChild(thumb);
+      continue;
+    }
+    thumb.classList.add('watched');
+    const minInput = document.createElement('input');
+    minInput.type = 'number';
+    minInput.className = 'num-input';
+    minInput.placeholder = 'min Lvl';
+    minInput.value = minLevels[id] ?? '';
+    minInput.addEventListener('change', () => setMinLevel(id, minInput.value));
+    const tile = document.createElement('div');
+    tile.className = 'summon-tile';
+    tile.append(thumb, minInput);
+    picker.appendChild(tile);
+  }
+}
+
 function renderFriendsSection(container) {
   const allSummons = summonNames();
   // Keep watched summons pickable after "Clear friends", so they can still be un-watched.
@@ -252,35 +279,16 @@ function renderFriendsSection(container) {
   }
 
   // Watch-list picker: click a summon to toggle whether friends missing it get flagged.
-  const picker = container.querySelector('.friend-picker');
-  for (const [id, name] of Object.entries(allSummons).sort((a, b) => a[1].localeCompare(b[1]))) {
-    const thumb = summonThumb(id, name);
-    thumb.addEventListener('click', () => {
-      enqueueUpdate('watchedSummons', (watched = []) => (watched.includes(id) ? watched.filter(w => w !== id) : [...watched, id]));
-    });
-    if (!watchedSummons.includes(id)) {
-      picker.appendChild(thumb);
-      continue;
-    }
-    thumb.classList.add('watched');
-    const minInput = document.createElement('input');
-    minInput.type = 'number';
-    minInput.className = 'num-input';
-    minInput.placeholder = 'min Lvl';
-    minInput.value = summonMinLevels[id] ?? '';
-    minInput.addEventListener('change', () =>
+  fillSummonPicker(container.querySelector('.friend-picker'), allSummons, watchedSummons, summonMinLevels, {
+    toggle: id => enqueueUpdate('watchedSummons', (watched = []) => (watched.includes(id) ? watched.filter(w => w !== id) : [...watched, id])),
+    setMinLevel: (id, value) =>
       enqueueUpdate('summonMinLevels', minLevels => {
         const next = { ...minLevels };
-        if (minInput.value) next[id] = Number(minInput.value);
+        if (value) next[id] = Number(value);
         else delete next[id];
         return next;
-      })
-    );
-    const tile = document.createElement('div');
-    tile.className = 'summon-tile';
-    tile.append(thumb, minInput);
-    picker.appendChild(tile);
-  }
+      }),
+  });
 
   let rows = showAllFriends
     ? Object.entries(friends).map(([userId, friend]) => ({ userId, ...friend })).sort((a, b) => b.sightings - a.sightings)
@@ -308,6 +316,41 @@ function renderFriendsSection(container) {
     }
     card.append(el, supportGrid(row, allSummons));
     list.appendChild(card);
+  }
+}
+
+// Non-friends seen on supporter pages, to friend later for their supports; one friended since drops out.
+function renderNonFriendsSection(container) {
+  const allSummons = summonNames(nonFriends);
+  const rows = Object.entries(nonFriends)
+    .filter(([userId, nonFriend]) => !(userId in friends) && offersAll(nonFriend.layout, nonFriendFilter, nonFriendMinLevels))
+    .map(([userId, nonFriend]) => ({ userId, ...nonFriend }))
+    .sort((a, b) => b.lastSeen - a.lastSeen);
+  container.innerHTML = `<h3>Non-friends (${rows.length} seen)</h3>
+    <div class="section-controls"><button class="clear-non-friends">Clear non-friends</button></div>
+    <div class="meta">Click summons to list only non-friends offering all of them.</div>
+    <div class="friend-picker"></div>`;
+  container.querySelector('.clear-non-friends').addEventListener('click', () => enqueueRemove('nonFriends'));
+  fillSummonPicker(container.querySelector('.friend-picker'), allSummons, nonFriendFilter, nonFriendMinLevels, {
+    toggle: id => {
+      nonFriendFilter = nonFriendFilter.includes(id) ? nonFriendFilter.filter(picked => picked !== id) : [...nonFriendFilter, id];
+      renderNonFriendsSection(container);
+    },
+    setMinLevel: (id, value) => {
+      nonFriendMinLevels = { ...nonFriendMinLevels, [id]: value ? Number(value) : undefined };
+      renderNonFriendsSection(container);
+    },
+  });
+  for (const row of rows) {
+    const card = container.appendChild(document.createElement('div'));
+    card.className = 'friend-card';
+    const el = document.createElement('div');
+    el.className = 'friend-row';
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = `seen ${row.sightings}× · last ${new Date(row.lastSeen).toLocaleString()}`;
+    el.append(profileLink(row.userId, row.name), meta);
+    card.append(el, supportGrid(row, allSummons));
   }
 }
 
@@ -508,9 +551,10 @@ function render() {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'watchedSummons', 'summonMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'nonFriends', 'watchedSummons', 'summonMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid'], data => {
     friends = data.friends || {};
     friendList = data.friendList || {};
+    nonFriends = data.nonFriends || {};
     hiddenFriends = data.hiddenFriends || {};
     watchedSummons = data.watchedSummons || [];
     summonMinLevels = data.summonMinLevels || {};
@@ -520,6 +564,7 @@ function loadAndRender() {
     for (const key of ITEM_KEYS) items[key] = data[key] || {};
     render();
     renderFriendsSection(document.getElementById('friends-section'));
+    renderNonFriendsSection(document.getElementById('non-friends-section'));
     renderStatsSection(document.getElementById('stats-section'));
     renderAssistSection(document.getElementById('assist-section'));
     renderCurrentRaid(document.getElementById('current-raid-section'));
@@ -531,6 +576,8 @@ chrome.storage.onChanged.addListener(changes => {
   if (ITEM_KEYS.some(key => changes[key])) render();
   if (changes.friends) friends = changes.friends.newValue || {};
   if (changes.friendList) friendList = changes.friendList.newValue || {};
+  if (changes.nonFriends) nonFriends = changes.nonFriends.newValue || {};
+  if (changes.nonFriends || changes.friends) renderNonFriendsSection(document.getElementById('non-friends-section'));
   if (changes.watchedSummons) watchedSummons = changes.watchedSummons.newValue || [];
   if (changes.summonMinLevels) summonMinLevels = changes.summonMinLevels.newValue || {};
   if (changes.hiddenFriends) hiddenFriends = changes.hiddenFriends.newValue || {};

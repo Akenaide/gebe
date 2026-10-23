@@ -3,7 +3,8 @@ import { ELEMENTS } from './elements.js';
 const BLOCK_START = '<div class="btn-supporter lis-supporter"';
 
 // The response is {data: "<URL-encoded HTML>"}; no DOMParser in node tests, so read it with regexes.
-export function parseSupporters(capture) {
+// friend: false returns the non-friends' supports instead.
+export function parseSupporters(capture, { friend = true } = {}) {
   let html;
   try {
     html = decodeURIComponent(JSON.parse(capture.responseBody).data);
@@ -12,8 +13,8 @@ export function parseSupporters(capture) {
   }
   const supporters = [];
   for (const block of html.split(BLOCK_START).slice(1)) {
-    // The last block runs into the page's JS templates, which also mention "ico-friend".
-    if (!block.includes('class="prt-supporter-name ico-friend"')) continue;
+    // The last block runs into the page's JS templates, which also mention "ico-friend", so only its first name div counts.
+    if ((block.match(/class="prt-supporter-name[^"]*"/)?.[0] === 'class="prt-supporter-name ico-friend"') !== friend) continue;
     // A block missing a field throws on its match; skip that support, not the whole page.
     try {
       supporters.push({
@@ -62,6 +63,11 @@ export function bestLevels(layout = {}) {
   const best = {};
   for (const { id, level } of Object.values(layout)) best[id] = Math.max(best[id] ?? 0, level);
   return best;
+}
+
+export function offersAll(layout, summonIds, minLevels = {}) {
+  const offered = bestLevels(layout);
+  return summonIds.every(id => id in offered && offered[id] >= (minLevels[id] ?? 0));
 }
 
 // From each friend's current layout: a summon they swapped out is missing again.

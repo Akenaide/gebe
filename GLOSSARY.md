@@ -38,6 +38,10 @@ _Avoid_: Evolution
 A summon a friend has set out for other players to borrow.
 _Avoid_: Supporter summon, friend summon
 
+**Non-friend**:
+A player who isn't the player's friend but whose supports show up on a supporter page. Gebe keeps their supports so the player can pick whom to friend.
+_Avoid_: Stranger, random
+
 **Supporter page**:
 The game's page listing supports to borrow before a battle, where Gebe sees friends' supports.
 _Avoid_: Support list, raid page

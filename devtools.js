@@ -25,6 +25,8 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     if (capture.url.includes('/quest/content/supporter_raid/')) {
       const supporters = parseSupporters(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
+      const nonFriendSupports = parseSupporters(capture, { friend: false });
+      if (nonFriendSupports.length) enqueueUpdate('nonFriends', nonFriends => mergeFriendHistory(nonFriends || {}, nonFriendSupports, Date.now()));
     }
     if (capture.url.includes('/quest/assist/search/assist_list/')) {
       // The game re-polls each whole list every ~1.4s, so the latest one replaces that list's stored one.
