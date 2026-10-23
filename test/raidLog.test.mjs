@@ -202,13 +202,13 @@ test('backfillRaidLog adds only the extra copies of identical lines in the same 
   assert.strictEqual(backfillRaidLog({ ...emptyRaid(), log: [seen] }, [fromBattleLog, fromBattleLog]).log.length, 2);
 });
 
-test('backfillRaidLog updates last actions and players from the added lines', () => {
+test('backfillRaidLog adds players from the added lines but leaves last actions to the honors', () => {
   /**
    * Given a raid where player 2 last acted at 1792267806 and player 3 is unknown,
    * and battle log lines: player 3's counter at 1792267740, player 2's skill at 1792267800 (an earlier minute start),
    * and player 4 joining (type 9) at 1792267740,
    * When backfillRaidLog is called,
-   * Then lastActionAt is { 2: 1792267806, 3: 1792267740 } and players gains 3 then 4.
+   * Then lastActionAt stays { 2: 1792267806 } and players gains 3 then 4.
    */
   const raid = { ...emptyRaid(), players: ['2'], lastActionAt: { 2: 1792267806 } };
   const lines = [
@@ -217,7 +217,7 @@ test('backfillRaidLog updates last actions and players from the added lines', ()
     { time: 1792267740, userId: '4', type: 9, text: 'joined!', approximate: true },
   ];
   const filled = backfillRaidLog(raid, lines);
-  assert.deepStrictEqual([filled.lastActionAt, filled.players], [{ 2: 1792267806, 3: 1792267740 }, ['2', '3', '4']]);
+  assert.deepStrictEqual([filled.lastActionAt, filled.players], [{ 2: 1792267806 }, ['2', '3', '4']]);
 });
 
 test('backfillRaidLog keeps the log within the limit, dropping the oldest lines', () => {
@@ -279,4 +279,27 @@ test('applyPageState keeps stored honors the reloaded page has not caught up wit
   const raid = { ...emptyRaid(), honors };
   const page = { raidId: raid.raidId, hp: raid.hp, points: [['1', null], ['2', 0]] };
   assert.deepStrictEqual(applyPageState(raid, page).honors, honors);
+});
+
+test('applyPageState sets a player\'s last action to now when their honors go up', () => {
+  /**
+   * Given a stored raid where player 1 has 1000 honors and player 2 has 500, both last acting at 100,
+   * and the page now showing player 1 at 1500 and player 2 still at 500,
+   * When applyPageState is called at 200,
+   * Then lastActionAt is { 1: 200, 2: 100 }.
+   */
+  const raid = { ...emptyRaid(), honors: { 1: 1000, 2: 500 }, lastActionAt: { 1: 100, 2: 100 } };
+  const page = { raidId: raid.raidId, hp: raid.hp, points: [['1', 1500], ['2', 500]] };
+  assert.deepStrictEqual(applyPageState(raid, page, 200).lastActionAt, { 1: 200, 2: 100 });
+});
+
+test('applyPageState sets no last action for a player first seen with honors', () => {
+  /**
+   * Given a stored raid with no honors yet (DevTools was opened mid-raid), and the page showing player 1 at 1500,
+   * When applyPageState is called at 200,
+   * Then lastActionAt stays empty, since those honors may come from before.
+   */
+  const raid = emptyRaid();
+  const page = { raidId: raid.raidId, hp: raid.hp, points: [['1', 1500]] };
+  assert.deepStrictEqual(applyPageState(raid, page, 200).lastActionAt, {});
 });

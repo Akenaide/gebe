@@ -28,8 +28,6 @@ export function parseRaidStart(capture, now) {
 
 // shortcut: the log is rewritten to storage on each battle log open, so only the newest lines are kept; raise it if long raids lose lines you need.
 export const RAID_LOG_LIMIT = 500;
-// Log types that aren't a player acting: 9 joined, 12 boss overdrive, 13 boss break.
-const NOT_ACTIONS = new Set([9, 12, 13]);
 
 // Players reload the raid page to skip animations, which fetches start.json again for the same raid.
 export function mergeRaidStart(stored, started) {
@@ -87,24 +85,22 @@ export function backfillRaidLog(raid, lines) {
     unmatched[lineKey(line)] -= 1;
     return false;
   });
-  const players = new Set(raid.players);
-  const lastActionAt = { ...raid.lastActionAt };
-  for (const line of added) {
-    players.add(line.userId);
-    // Each open repeats earlier lines, so only a later line moves a player's last action.
-    if (!NOT_ACTIONS.has(line.type) && line.time > (lastActionAt[line.userId] ?? 0)) lastActionAt[line.userId] = line.time;
-  }
+  const players = new Set([...raid.players, ...added.map(line => line.userId)]);
   const log = [...raid.log, ...added].toSorted((a, b) => a.time - b.time).slice(-RAID_LOG_LIMIT);
-  return { ...raid, log, players: [...players], lastActionAt };
+  return { ...raid, log, players: [...players] };
 }
 
 // The game's page state (stage.pJsnData), which it keeps current from the raid socket; read by devtools.js.
-export function applyPageState(raid, page) {
+export function applyPageState(raid, page, now) {
   // A player has no point until the game's first MVP update after they join or after a reload;
   // honors never go down during a raid, so the higher of stored and page wins.
   const honors = { ...raid.honors };
+  const lastActionAt = { ...raid.lastActionAt };
   for (const [userId, point] of page.points) {
-    if (point != null) honors[userId] = Math.max(honors[userId] ?? 0, Number(point));
+    if (point == null) continue;
+    // A player first seen with honors may have earned them before DevTools was opened.
+    if (honors[userId] != null && Number(point) > honors[userId]) lastActionAt[userId] = now;
+    honors[userId] = Math.max(honors[userId] ?? 0, Number(point));
   }
-  return { ...raid, hp: Number(page.hp), honors };
+  return { ...raid, hp: Number(page.hp), honors, lastActionAt };
 }

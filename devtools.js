@@ -74,7 +74,7 @@ setInterval(() => {
     // Unchanged (or a stale raid's state after leaving it): nothing to write.
     if (!page || JSON.stringify(page) === lastPageState) return;
     lastPageState = JSON.stringify(page);
-    enqueueUpdate('currentRaid', raid => (raid?.raidId === page.raidId ? raidLog.applyPageState(raid, page) : raid));
+    enqueueUpdate('currentRaid', raid => (raid?.raidId === page.raidId ? raidLog.applyPageState(raid, page, Date.now() / 1000) : raid));
   });
 }, 1000);
 

@@ -407,7 +407,7 @@ function renderCurrentRaid(container) {
   for (const [index, userId] of ranked.entries()) {
     const row = body.insertRow();
     const lastAction = currentRaid.lastActionAt?.[userId];
-    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', lastAction ? minuteTime(lastAction) : '']) row.insertCell().textContent = value;
+    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', lastAction ? new Date(lastAction * 1000).toLocaleTimeString() : '']) row.insertCell().textContent = value;
     row.style.color = colorOf(userId);
   }
   const logKey = JSON.stringify(currentRaid.log);
