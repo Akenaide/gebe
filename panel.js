@@ -391,7 +391,7 @@ function renderCurrentRaid(container) {
     renderedLog = null;
   }
   // Names and log lines come from other players, so everything goes in as text, never HTML.
-  container.querySelector('h3').textContent = `${currentRaid.boss}: ${hpPercent}%`;
+  container.querySelector('h3').textContent = `${currentRaid.boss}: ${currentRaid.hp.toLocaleString()} HP (${hpPercent}%)`;
   container.querySelector('.meta').textContent = `Battle ID ${currentRaid.battleId} · entered ${new Date(currentRaid.enteredAt * 1000).toLocaleTimeString()}`;
   const nameOf = userId => currentRaid.members[userId] ?? userId;
   // Golden-angle hues keep players who joined one after another far apart on the color wheel.
