@@ -303,3 +303,36 @@ test('applyPageState sets no last action for a player first seen with honors', (
   const page = { raidId: raid.raidId, hp: raid.hp, points: [['1', 1500]] };
   assert.deepStrictEqual(applyPageState(raid, page, 200).lastActionAt, {});
 });
+
+test('applyPageState adds the name of a player who joined after the raid started', () => {
+  /**
+   * Given a stored raid whose members are { 1: 'Alice' },
+   * and the page now also listing player 2, 'Bob', who just joined,
+   * When applyPageState is called with it,
+   * Then members are { 1: 'Alice', 2: 'Bob' }.
+   */
+  const raid = { ...emptyRaid(), members: { 1: 'Alice' } };
+  const page = { raidId: raid.raidId, hp: raid.hp, points: [], members: { 1: 'Alice', 2: 'Bob' } };
+  assert.deepStrictEqual(applyPageState(raid, page).members, { 1: 'Alice', 2: 'Bob' });
+});
+
+test('applyPageState clears leftAt once the raid page is back', () => {
+  /**
+   * Given a stored raid that was left at 300,
+   * When applyPageState is called with the raid's page state again,
+   * Then the raid no longer has a leftAt.
+   */
+  const raid = { ...emptyRaid(), leftAt: 300 };
+  const page = { raidId: raid.raidId, hp: raid.hp, points: [] };
+  assert.strictEqual(applyPageState(raid, page, 400).leftAt, undefined);
+});
+
+test('parseRaidStart reads a numeric user_id as a string, like the battle log\'s', () => {
+  /**
+   * Given a start.json capture where one member's user_id is the number 6382168,
+   * When parseRaidStart is called,
+   * Then players is ["6382168"], so the battle log's "6382168" doesn't add the same player again.
+   */
+  const capture = startCapture({ raidId: '1', battleId: 'A', monster: 'Boss', hp: 1, hpmax: 1, members: [[6382168, 'ちくわ']] });
+  assert.deepStrictEqual(parseRaidStart(capture, 0).players, ['6382168']);
+});

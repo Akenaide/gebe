@@ -3,6 +3,7 @@ import { bestLevels, countSupportStats, findMissingDetails, findMissingSummons, 
 import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 import { createWriteQueue } from './src/writeQueue.js';
 import { ELEMENTS } from './src/elements.js';
+import { relativeTime } from './src/relativeTime.js';
 
 const { enqueueUpdate, enqueueRemove } = createWriteQueue(chrome.storage.local);
 
@@ -450,7 +451,7 @@ function renderCurrentRaid(container) {
   for (const [index, userId] of ranked.entries()) {
     const row = body.insertRow();
     const lastAction = currentRaid.lastActionAt?.[userId];
-    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', lastAction ? new Date(lastAction * 1000).toLocaleTimeString() : '']) row.insertCell().textContent = value;
+    for (const value of [index + 1, nameOf(userId), honors[userId]?.toLocaleString() ?? '', lastAction ? relativeTime(lastAction, currentRaid.leftAt ?? Date.now() / 1000) : '']) row.insertCell().textContent = value;
     row.style.color = colorOf(userId);
   }
   const logKey = JSON.stringify(currentRaid.log);
@@ -535,6 +536,8 @@ function renderAssistList(block, list, target) {
 document.getElementById('clear-raids').addEventListener('click', () => enqueueRemove('assistRaids'));
 // No poll arrives once the backup screen is left, so re-check ages on a timer.
 setInterval(() => renderAssistSection(document.getElementById('assist-section')), 30_000);
+// Last actions are relative, so they age between honor changes.
+setInterval(() => renderCurrentRaid(document.getElementById('current-raid-section')), 1000);
 
 function render() {
   renderFilterBar(document.getElementById('attribute-filter'));

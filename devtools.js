@@ -67,14 +67,24 @@ chrome.storage.onChanged.addListener(changes => {
 // The game keeps honors and boss HP current in its page state, from the raid socket; reading a few fields is far cheaper than getHAR().
 const PAGE_STATE = `(() => {
   const raid = window.stage?.pJsnData;
+  // The game leaves the last raid's state behind after you go elsewhere, so also require the raid page's URL.
+  if (!location.hash.includes('raid_multi/' + raid?.twitter?.raid_id)) return null;
   if (!raid?.twitter || !raid.multi_raid_member_info) return null;
-  return { raidId: String(raid.twitter.raid_id), hp: raid.boss.param[0].hp, points: raid.multi_raid_member_info.map(m => [m.user_id, m.point]) };
+  return { raidId: String(raid.twitter.raid_id), hp: raid.boss.param[0].hp, points: raid.multi_raid_member_info.map(m => [m.user_id, m.point]), members: Object.fromEntries(raid.multi_raid_member_info.map(m => [m.user_id, m.nickname])) };
 })()`;
 let lastPageState = null;
 setInterval(() => {
   chrome.devtools.inspectedWindow.eval(PAGE_STATE, page => {
-    // Unchanged (or a stale raid's state after leaving it): nothing to write.
-    if (!page || JSON.stringify(page) === lastPageState) return;
+    // Not on the raid page: the panel's clock stops at the moment you left.
+    if (!page) {
+      // Only the DevTools that was on the raid marks it left, and once, not each second.
+      if (lastPageState === null) return;
+      lastPageState = null;
+      enqueueUpdate('currentRaid', raid => (raid && !raid.leftAt ? { ...raid, leftAt: Date.now() / 1000 } : raid));
+      return;
+    }
+    // Unchanged: nothing to write.
+    if (JSON.stringify(page) === lastPageState) return;
     lastPageState = JSON.stringify(page);
     enqueueUpdate('currentRaid', raid => (raid?.raidId === page.raidId ? raidLog.applyPageState(raid, page, Date.now() / 1000) : raid));
   });

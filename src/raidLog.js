@@ -19,7 +19,8 @@ export function parseRaidStart(capture, now) {
     hpmax: Number(boss.hpmax),
     members: Object.fromEntries(start.multi_raid_member_info.map(member => [member.user_id, member.nickname])),
     // Join order, so each player keeps the same color for the whole raid (object keys would sort numerically).
-    players: start.multi_raid_member_info.map(member => member.user_id),
+    // The game sends some user ids as numbers; the battle log's are strings, and a Set would keep both.
+    players: start.multi_raid_member_info.map(member => String(member.user_id)),
     log: [],
     lastActionAt: {},
     enteredAt: now,
@@ -102,5 +103,6 @@ export function applyPageState(raid, page, now) {
     if (honors[userId] != null && Number(point) > honors[userId]) lastActionAt[userId] = now;
     honors[userId] = Math.max(honors[userId] ?? 0, Number(point));
   }
-  return { ...raid, hp: Number(page.hp), honors, lastActionAt };
+  // Players who join after start.json only show up, with their name, in the page state.
+  return { ...raid, hp: Number(page.hp), honors, lastActionAt, members: { ...raid.members, ...page.members }, leftAt: undefined };
 }
