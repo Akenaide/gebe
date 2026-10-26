@@ -35,6 +35,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `friendList` (`{userId: {name, page}}`, from the friend list pages) | `devtools.js` | per-friend delete |
 | `hiddenFriends` (`{userId: note}`) | panel | per-friend delete |
 | `watchedSummons`, `summonMinLevels` | panel | — |
+| `nonFriendFilter`, `nonFriendMinLevels` (Search new friends filter) | panel | — |
 | `assistRaids` (`{"<tab>/<questId>": {raids, receivedAt}}`, each backup list replaced on its poll; hidden after 5 min) | `devtools.js` | Clear raids |
 | `raidTargetHp` (`{questId: percent}`) | panel | — |
 | `currentRaid` (from `start.json`, then the battle log and the page state; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |

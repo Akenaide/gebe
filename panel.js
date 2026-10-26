@@ -33,7 +33,7 @@ let raidTargetHp = {};
 const ASSIST_MAX_AGE = 5 * 60_000;
 let showAllFriends = false;
 let showHiddenFriends = false;
-// Summons a non-friend must all offer, at these min levels, to be listed; kept until DevTools closes.
+// Summons a non-friend must all offer, at these min levels, to be listed.
 let nonFriendFilter = [];
 let nonFriendMinLevels = {};
 
@@ -333,14 +333,14 @@ function renderNonFriendsSection(container) {
     <div class="friend-picker"></div>`;
   container.querySelector('.clear-non-friends').addEventListener('click', () => enqueueRemove('nonFriends'));
   fillSummonPicker(container.querySelector('.friend-picker'), allSummons, nonFriendFilter, nonFriendMinLevels, {
-    toggle: id => {
-      nonFriendFilter = nonFriendFilter.includes(id) ? nonFriendFilter.filter(picked => picked !== id) : [...nonFriendFilter, id];
-      renderNonFriendsSection(container);
-    },
-    setMinLevel: (id, value) => {
-      nonFriendMinLevels = { ...nonFriendMinLevels, [id]: value ? Number(value) : undefined };
-      renderNonFriendsSection(container);
-    },
+    toggle: id => enqueueUpdate('nonFriendFilter', (picked = []) => (picked.includes(id) ? picked.filter(p => p !== id) : [...picked, id])),
+    setMinLevel: (id, value) =>
+      enqueueUpdate('nonFriendMinLevels', minLevels => {
+        const next = { ...minLevels };
+        if (value) next[id] = Number(value);
+        else delete next[id];
+        return next;
+      }),
   });
   for (const row of rows) {
     const card = container.appendChild(document.createElement('div'));
@@ -554,13 +554,15 @@ function render() {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'nonFriends', 'watchedSummons', 'summonMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'nonFriends', 'watchedSummons', 'summonMinLevels', 'nonFriendFilter', 'nonFriendMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid'], data => {
     friends = data.friends || {};
     friendList = data.friendList || {};
     nonFriends = data.nonFriends || {};
     hiddenFriends = data.hiddenFriends || {};
     watchedSummons = data.watchedSummons || [];
     summonMinLevels = data.summonMinLevels || {};
+    nonFriendFilter = data.nonFriendFilter || [];
+    nonFriendMinLevels = data.nonFriendMinLevels || {};
     assistRaids = data.assistRaids || {};
     raidTargetHp = data.raidTargetHp || {};
     currentRaid = data.currentRaid || null;
@@ -580,7 +582,9 @@ chrome.storage.onChanged.addListener(changes => {
   if (changes.friends) friends = changes.friends.newValue || {};
   if (changes.friendList) friendList = changes.friendList.newValue || {};
   if (changes.nonFriends) nonFriends = changes.nonFriends.newValue || {};
-  if (changes.nonFriends || changes.friends) renderNonFriendsSection(document.getElementById('non-friends-section'));
+  if (changes.nonFriendFilter) nonFriendFilter = changes.nonFriendFilter.newValue || [];
+  if (changes.nonFriendMinLevels) nonFriendMinLevels = changes.nonFriendMinLevels.newValue || {};
+  if (changes.nonFriends || changes.friends || changes.nonFriendFilter || changes.nonFriendMinLevels) renderNonFriendsSection(document.getElementById('non-friends-section'));
   if (changes.watchedSummons) watchedSummons = changes.watchedSummons.newValue || [];
   if (changes.summonMinLevels) summonMinLevels = changes.summonMinLevels.newValue || {};
   if (changes.hiddenFriends) hiddenFriends = changes.hiddenFriends.newValue || {};
