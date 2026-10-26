@@ -77,7 +77,7 @@ setInterval(() => {
   chrome.devtools.inspectedWindow.eval(PAGE_STATE, page => {
     // Not on the raid page: the panel's clock stops at the moment you left.
     if (!page) {
-      // Only the DevTools that was on the raid marks it left, and once, not each second.
+      // Only the DevTools that was on the raid marks it left, and once, not each poll.
       if (lastPageState === null) return;
       lastPageState = null;
       enqueueUpdate('currentRaid', raid => (raid && !raid.leftAt ? { ...raid, leftAt: Date.now() / 1000 } : raid));
@@ -88,6 +88,6 @@ setInterval(() => {
     lastPageState = JSON.stringify(page);
     enqueueUpdate('currentRaid', raid => (raid?.raidId === page.raidId ? raidLog.applyPageState(raid, page, Date.now() / 1000) : raid));
   });
-}, 1000);
+}, 500);
 
 chrome.devtools.panels.create('Gebe', '', 'panel.html');
