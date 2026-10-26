@@ -8,6 +8,7 @@ import { relativeTime } from './src/relativeTime.js';
 const { enqueueUpdate, enqueueRemove } = createWriteQueue(chrome.storage.local);
 
 const ASSET_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/assets';
+const STATUS_ICON_BASE = 'https://prd-game-a-granbluefantasy.akamaized.net/assets_en/img_low/sp/ui/icon/status/x64';
 
 function thumbnailUrl(assetFolder, id) {
   return `${ASSET_BASE}/${assetFolder}/s/${id}.jpg`;
@@ -430,6 +431,8 @@ function renderCurrentRaid(container) {
   if (!container.querySelector('.raid-log')) {
     container.innerHTML = `<h3></h3>
       <div class="meta"></div>
+      <div class="raid-statuses" data-list="debuffs"></div>
+      <div class="raid-statuses" data-list="buffs"></div>
       <table class="stats-table"></table>
       <div class="raid-log"></div>`;
     renderedLog = null;
@@ -437,6 +440,22 @@ function renderCurrentRaid(container) {
   // Names and log lines come from other players, so everything goes in as text, never HTML.
   container.querySelector('h3').textContent = `${currentRaid.boss}: ${currentRaid.hp.toLocaleString()} HP (${hpPercent}%)`;
   container.querySelector('.meta').textContent = `Battle ID ${currentRaid.battleId} · entered ${new Date(currentRaid.enteredAt * 1000).toLocaleTimeString()}`;
+  for (const row of container.querySelectorAll('.raid-statuses')) {
+    const statuses = currentRaid[row.dataset.list] ?? [];
+    // Rebuilt only on change, so the icons don't reload with the per-second redraw.
+    const key = JSON.stringify(statuses);
+    if (row.dataset.key === key) continue;
+    row.dataset.key = key;
+    const label = document.createElement('span');
+    label.className = 'meta';
+    label.textContent = `${row.dataset.list === 'buffs' ? 'Buffs' : 'Debuffs'} (${statuses.length})`;
+    row.replaceChildren(label, ...statuses.map(status => {
+      const icon = document.createElement('img');
+      icon.src = `${STATUS_ICON_BASE}/status_${status}.png`;
+      icon.alt = icon.title = status;
+      return icon;
+    }));
+  }
   const nameOf = userId => currentRaid.members[userId] ?? userId;
   // Golden-angle hues keep players who joined one after another far apart on the color wheel.
   const players = currentRaid.players ?? [];

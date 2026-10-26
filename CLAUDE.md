@@ -21,7 +21,7 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 
 - `devtools.js` (the `devtools_page`) captures game requests via `chrome.devtools.network.onRequestFinished`, which only fires while DevTools is open on that tab. It reduces each capture to the storage keys below; raw captures are saved only while capturing is on. Every storage read-modify-write and remove, from the panel too, takes one Web Lock (`src/writeQueue.js`), shared by the panel and every open DevTools, since GBF fires concurrent requests; an update that throws is dropped, not left holding the lock.
 - `panel.js` renders the storage keys and re-renders on `chrome.storage.onChanged`.
-- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests. `src/raidLog.js` follows the raid you're in: `start.json` starts it, and each time the player opens the game's battle log (`multi_battle_log`) its lines are merged into the raid log. Every half second, `devtools.js` reads honors and boss HP from the game's page state (`stage.pJsnData`, which the game keeps current from the raid socket) with `chrome.devtools.inspectedWindow.eval()`. The raid socket itself isn't read: polling `getHAR()` for its frames is suspected of leaking memory, and that version lives on the `live-raid-log` branch.
+- `src/itemStats.js` handles duplicates (crate + inventory, SS Rare only); `src/supporters.js` handles friends' supports. `src/assistRaids.js` handles backup requests. `src/raidLog.js` follows the raid you're in: `start.json` starts it, and each time the player opens the game's battle log (`multi_battle_log`) its lines are merged into the raid log. Boss buffs and debuffs come from `start.json` and the player's own action results (`ability_result`, `normal_attack_result`, `summon_result`), keeping global ones and the player's own local ones; the page state only holds `start.json`'s. Every half second, `devtools.js` reads honors and boss HP from the game's page state (`stage.pJsnData`, which the game keeps current from the raid socket) with `chrome.devtools.inspectedWindow.eval()`. The raid socket itself isn't read: polling `getHAR()` for its frames is suspected of leaking memory, and that version lives on the `live-raid-log` branch.
 
 ## Storage keys
 
@@ -38,6 +38,6 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `nonFriendFilter`, `nonFriendMinLevels` (Search new friends filter) | panel | — |
 | `assistRaids` (`{"<tab>/<questId>": {raids, receivedAt}}`, each backup list replaced on its poll; hidden after 5 min) | `devtools.js` | Clear raids |
 | `raidTargetHp` (`{questId: percent}`) | panel | — |
-| `currentRaid` (from `start.json`, then the battle log and the page state; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
+| `currentRaid` (from `start.json`, then the battle log, the player's action results and the page state; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
 
 Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Storage isn't capped in code: the manifest requests `unlimitedStorage`.

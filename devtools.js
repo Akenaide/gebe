@@ -37,6 +37,17 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
       const started = raidLog.parseRaidStart(capture, Date.now() / 1000);
       if (started) enqueueUpdate('currentRaid', stored => raidLog.mergeRaidStart(stored, started));
     }
+    // Only the player's own actions bring the boss buffs and debuffs; the page state keeps start.json's until a reload.
+    if (/\/rest\/multiraid\/(ability|normal_attack|summon)_result\.json/.test(capture.url)) {
+      const raidId = capture.requestBody?.match(/"raid_id":"?(\d+)/)?.[1];
+      if (raidId) {
+        enqueueUpdate('currentRaid', raid => {
+          if (raid?.raidId !== raidId) return raid;
+          const condition = raidLog.parseBossCondition(capture, raid.playerId);
+          return condition ? { ...raid, ...condition } : raid;
+        });
+      }
+    }
     // The game's own battle log, fetched when the player opens it, is the raid log's only source:
     // reading the raid socket meant polling getHAR(), suspected of leaking memory (see the live-raid-log branch).
     if (capture.url.includes('/rest/multiraid/multi_battle_log')) {

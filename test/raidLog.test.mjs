@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseRaidStart, mergeRaidStart, RAID_LOG_LIMIT, parseBattleLog, backfillRaidLog, applyPageState } from '../src/raidLog.js';
+import { parseRaidStart, parseBossCondition, mergeRaidStart, RAID_LOG_LIMIT, parseBattleLog, backfillRaidLog, applyPageState } from '../src/raidLog.js';
 
 // Same shape as a real /rest/multiraid/start.json, trimmed to the fields we read.
-function startCapture({ raidId, battleId, monster, hp, hpmax, members }) {
+function startCapture({ raidId, battleId, monster, hp, hpmax, members, buffs = [], debuffs = [], playerId = '26271737' }) {
   return {
     url: 'https://game.granbluefantasy.jp/rest/multiraid/start.json?_=1',
     responseBody: JSON.stringify({
       raid_id: Number(raidId),
-      boss: { param: [{ name: { ja: 'Lv150 プロトバハムート', en: monster }, hp: String(hp), hpmax }] },
+      user_id: playerId,
+      boss: { param: [{ name: { ja: 'Lv150 プロトバハムート', en: monster }, hp: String(hp), hpmax, condition: { buff: buffs && buffs.map(status => ({ status, is_unusable_harb: true, display_priority: 0 })), debuff: debuffs.map(status => ({ status, is_unusable_harb: false, display_priority: 0 })) } }] },
       twitter: { raid_id: raidId, battle_id: battleId, monster },
       multi_raid_member_info: members.map(([userId, nickname]) => ({ user_id: userId, nickname, is_host: false })),
     }),
@@ -30,15 +31,142 @@ test('parseRaidStart reads the boss, battle ID and members of the raid just ente
   assert.deepStrictEqual(parseRaidStart(capture, now), {
     raidId,
     battleId: '5EF11133',
+    playerId: '26271737',
     boss: monster,
     hp: 539429351,
     hpmax: 1200000000,
+    buffs: [],
+    debuffs: [],
     members: { 26271737: 'Ake', 31308953: 'D.F' },
     players: ['26271737', '31308953'],
     log: [],
     lastActionAt: {},
     enteredAt: now,
   });
+});
+
+test('parseRaidStart reads the boss debuffs', () => {
+  /**
+   * Given a start.json capture whose boss has debuffs 1010 and 1011_15,
+   * When parseRaidStart is called on it,
+   * Then debuffs are ['1010', '1011_15'].
+   */
+  const debuffs = ['1010', '1011_15'];
+  const capture = startCapture({ raidId: '47030438006', battleId: '5EF11133', monster: 'Lvl 150 Proto Bahamut', hp: 1, hpmax: 1, members: [], debuffs });
+  assert.deepStrictEqual(parseRaidStart(capture, 0).debuffs, debuffs);
+});
+
+test('parseBossCondition reads the boss debuffs after the last step of an action', () => {
+  /**
+   * Given an ability_result.json capture whose scenario sets the boss debuffs to [1010], then to [1010, 1020_112],
+   * When parseBossCondition is called on it,
+   * Then debuffs are ['1010', '1020_112'].
+   */
+  const debuffs = ['1010', '1020_112'];
+  const bossCondition = statuses => ({ cmd: 'condition', pos: 0, to: 'boss', condition: { buff: [], debuff: statuses.map(status => ({ status, display_priority: 0 })) } });
+  const capture = {
+    url: 'https://game.granbluefantasy.jp/rest/multiraid/ability_result.json?_=1',
+    responseBody: JSON.stringify({ scenario: [bossCondition(['1010']), { cmd: 'condition', pos: 0, to: 'player', condition: { buff: [], debuff: [] } }, bossCondition(debuffs)] }),
+  };
+  assert.deepStrictEqual(parseBossCondition(capture).debuffs, debuffs);
+});
+
+test('parseBossCondition keeps the global debuffs and the player\'s own local ones', () => {
+  /**
+   * Given an ability_result.json capture whose boss has global debuff 1439, player 26271737's local 1011_16
+   * and player 19305481's local 1010_15,
+   * When parseBossCondition is called on it for player 26271737,
+   * Then debuffs are ['1439', '1011_16'].
+   */
+  const playerId = '26271737';
+  const debuff = (status, owner) => ({ status, personal_debuff_user_id: owner, personal_status: status, icon_add_turn_flag: '' });
+  const condition = { buff: [], debuff: [debuff('1439', false), debuff('1011_16', playerId), debuff('1010_15', '19305481')] };
+  const capture = {
+    url: 'https://game.granbluefantasy.jp/rest/multiraid/ability_result.json?_=1',
+    responseBody: JSON.stringify({ scenario: [{ cmd: 'condition', pos: 0, to: 'boss', condition }] }),
+  };
+  assert.deepStrictEqual(parseBossCondition(capture, playerId).debuffs, ['1439', '1011_16']);
+});
+
+test('parseBossCondition keeps the boss\'s global buffs and the player\'s own local ones', () => {
+  /**
+   * Given an ability_result.json capture whose boss has global buffs 7443 (owner false) and 7520 (owner null),
+   * player 26271737's local 1240 and player 23716557's local 7721,
+   * When parseBossCondition is called on it for player 26271737,
+   * Then buffs are ['7443', '7520', '1240'].
+   */
+  const playerId = '26271737';
+  const buff = (status, owner) => ({ status, personal_buff_user_id: owner, personal_status: status, icon_add_turn_flag: '' });
+  const condition = { buff: [buff('7443', false), buff('7520', null), buff('1240', playerId), buff('7721', '23716557')], debuff: [] };
+  const capture = {
+    url: 'https://game.granbluefantasy.jp/rest/multiraid/ability_result.json?_=1',
+    responseBody: JSON.stringify({ scenario: [{ cmd: 'condition', pos: 0, to: 'boss', condition }] }),
+  };
+  assert.deepStrictEqual(parseBossCondition(capture, playerId).buffs, ['7443', '7520', '1240']);
+});
+
+test('parseBossCondition reads a null buff list as no buffs', () => {
+  /**
+   * Given a normal_attack_result.json capture whose boss condition has buff null, as the game sometimes sends,
+   * When parseBossCondition is called on it,
+   * Then buffs are [].
+   */
+  const capture = {
+    url: 'https://game.granbluefantasy.jp/rest/multiraid/normal_attack_result.json?_=1',
+    responseBody: JSON.stringify({ scenario: [{ cmd: 'condition', pos: 0, to: 'boss', condition: { buff: null, debuff: [] } }] }),
+  };
+  assert.deepStrictEqual(parseBossCondition(capture).buffs, []);
+});
+
+test('parseBossCondition returns null for a result with no boss condition', () => {
+  /**
+   * Given an ability_result.json capture that is an error popup, with no scenario,
+   * When parseBossCondition is called on it,
+   * Then it returns null, so the stored condition is kept.
+   */
+  const capture = { url: 'https://game.granbluefantasy.jp/rest/multiraid/ability_result.json?_=1', responseBody: JSON.stringify({ popup: { title: 'Error' } }) };
+  assert.strictEqual(parseBossCondition(capture), null);
+});
+
+test('parseBossCondition returns null for a body that is not JSON', () => {
+  /**
+   * Given an ability_result.json capture whose body is an HTML error page,
+   * When parseBossCondition is called on it,
+   * Then it returns null instead of throwing.
+   */
+  assert.strictEqual(parseBossCondition({ url: 'https://game.granbluefantasy.jp/rest/multiraid/ability_result.json', responseBody: '<html>maintenance</html>' }), null);
+});
+
+test('parseRaidStart reads the boss buffs', () => {
+  /**
+   * Given a start.json capture whose boss has buffs 7443 and 7520,
+   * When parseRaidStart is called on it,
+   * Then buffs are ['7443', '7520'].
+   */
+  const buffs = ['7443', '7520'];
+  const capture = startCapture({ raidId: '47030438006', battleId: '5EF11133', monster: 'Lvl 150 Proto Bahamut', hp: 1, hpmax: 1, members: [], buffs });
+  assert.deepStrictEqual(parseRaidStart(capture, 0).buffs, buffs);
+});
+
+test('parseRaidStart reads a null buff list as no buffs', () => {
+  /**
+   * Given a start.json capture whose boss condition has buff null, as the game sometimes sends,
+   * When parseRaidStart is called on it,
+   * Then buffs are [].
+   */
+  const capture = startCapture({ raidId: '47030438006', battleId: '5EF11133', monster: 'Lvl 150 Proto Bahamut', hp: 1, hpmax: 1, members: [], buffs: null });
+  assert.deepStrictEqual(parseRaidStart(capture, 0).buffs, []);
+});
+
+test('parseRaidStart reads the player\'s own user id', () => {
+  /**
+   * Given a start.json capture for player 26271737,
+   * When parseRaidStart is called on it,
+   * Then playerId is '26271737'.
+   */
+  const playerId = '26271737';
+  const capture = startCapture({ raidId: '47030438006', battleId: '5EF11133', monster: 'Lvl 150 Proto Bahamut', hp: 1, hpmax: 1, members: [], playerId });
+  assert.strictEqual(parseRaidStart(capture, 0).playerId, playerId);
 });
 
 test('parseRaidStart returns null for a body that is not JSON', () => {

@@ -13,10 +13,13 @@ export function parseRaidStart(capture, now) {
   return {
     raidId: start.twitter.raid_id,
     battleId: start.twitter.battle_id,
+    playerId: String(start.user_id),
     // boss.name is sometimes {ja, en}, sometimes a string; twitter.monster is always a string.
     boss: start.twitter.monster,
     hp: Number(boss.hp),
     hpmax: Number(boss.hpmax),
+    buffs: ownStatuses(boss.condition.buff, 'personal_buff_user_id', String(start.user_id)),
+    debuffs: ownStatuses(boss.condition.debuff, 'personal_debuff_user_id', String(start.user_id)),
     members: Object.fromEntries(start.multi_raid_member_info.map(member => [member.user_id, member.nickname])),
     // Join order, so each player keeps the same color for the whole raid (object keys would sort numerically).
     // The game sends some user ids as numbers; the battle log's are strings, and a Set would keep both.
@@ -105,4 +108,27 @@ export function applyPageState(raid, page, now) {
   }
   // Players who join after start.json only show up, with their name, in the page state.
   return { ...raid, hp: Number(page.hp), honors, lastActionAt, members: { ...raid.members, ...page.members }, leftAt: undefined };
+}
+
+// A boss condition lists every player's local buffs and debuffs; only global ones (owner false or null)
+// and the player's own affect them. Plain lists, with no owner, already hold just what the player sees.
+function ownStatuses(statuses, ownerKey, playerId) {
+  // The game sometimes sends a list as null instead of empty.
+  return (statuses ?? []).filter(status => !status[ownerKey] || status[ownerKey] === playerId).map(status => status.status);
+}
+
+// Each action's result (ability, attack, summon) ends with the boss's full condition after it.
+export function parseBossCondition(capture, playerId) {
+  let scenario;
+  try {
+    scenario = JSON.parse(capture.responseBody)?.scenario ?? [];
+  } catch {
+    return null;
+  }
+  const boss = scenario.findLast(step => step.cmd === 'condition' && step.to === 'boss');
+  if (!boss) return null;
+  return {
+    buffs: ownStatuses(boss.condition.buff, 'personal_buff_user_id', playerId),
+    debuffs: ownStatuses(boss.condition.debuff, 'personal_debuff_user_id', playerId),
+  };
 }
