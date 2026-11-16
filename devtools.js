@@ -1,5 +1,5 @@
 import { shouldCapture } from './src/capture.js';
-import { parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory } from './src/supporters.js';
+import { isSupporterPage, parseSupporters, parseFixedSummons, parseFriendList, mergeFriendHistory } from './src/supporters.js';
 import { extractItems } from './src/itemStats.js';
 import { parseAssistRaids, assistListKey } from './src/assistRaids.js';
 import * as raidLog from './src/raidLog.js';
@@ -22,7 +22,7 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
     for (const [key, items] of Object.entries(extractItems(capture))) {
       if (Object.keys(items).length) enqueueUpdate(key, stored => ({ ...stored, ...items }));
     }
-    if (capture.url.includes('/quest/content/supporter_raid/')) {
+    if (isSupporterPage(capture.url)) {
       const supporters = parseSupporters(capture);
       if (supporters.length) enqueueUpdate('friends', friends => mergeFriendHistory(friends || {}, supporters, Date.now()));
       const nonFriendSupports = parseSupporters(capture, { friend: false });

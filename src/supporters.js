@@ -2,6 +2,11 @@ import { ELEMENTS } from './elements.js';
 
 const BLOCK_START = '<div class="btn-supporter lis-supporter"';
 
+// A quest's support page (#quest/supporter/…) and a raid's (#quest/supporter_raid/…) load the same HTML.
+export function isSupporterPage(url) {
+  return /\/quest\/content\/supporter(_raid)?\//.test(url);
+}
+
 // The response is {data: "<URL-encoded HTML>"}; no DOMParser in node tests, so read it with regexes.
 // friend: false returns the non-friends' supports instead.
 export function parseSupporters(capture, { friend = true } = {}) {

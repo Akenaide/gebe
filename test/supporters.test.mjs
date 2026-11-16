@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { parseSupporters, parseFixedSummons, parseFriendList, findMissingDetails, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats, offersAll } from '../src/supporters.js';
+import { isSupporterPage, parseSupporters, parseFixedSummons, parseFriendList, findMissingDetails, mergeFriendHistory, findMissingSummons, groupLayout, countSupportStats, offersAll } from '../src/supporters.js';
 
 // Same shape as a real /quest/content/supporter_raid/ block, trimmed to the fields we read.
 function supporterBlock({ userId, name, summonId, summonName, level = 150, slot = 0, friend = true }) {
@@ -17,6 +17,16 @@ function supporterCapture(blocks, trailingHtml = '') {
     responseBody: JSON.stringify({ data: encodeURIComponent(`<div class="prt-supporter-attribute type0">${blocks.join('')}</div>${trailingHtml}`) }),
   };
 }
+
+test('isSupporterPage matches the quest support page as well as the raid one', () => {
+  /**
+   * Given the support page URLs of a quest (#quest/supporter/981021/3) and of a raid,
+   * When isSupporterPage is called on each,
+   * Then both match.
+   */
+  assert.strictEqual(isSupporterPage('https://game.granbluefantasy.jp/quest/content/supporter/981021/3/0?_=1'), true);
+  assert.strictEqual(isSupporterPage('https://game.granbluefantasy.jp/quest/content/supporter_raid/47007998137/2/0?_=1'), true);
+});
 
 test('parseSupporters returns one record per friend support', () => {
   /**
