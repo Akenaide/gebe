@@ -3,6 +3,7 @@ import { isSupporterPage, parseSupporters, parseFixedSummons, parseFriendList, m
 import { extractItems } from './src/itemStats.js';
 import { parseAssistRaids, assistListKey } from './src/assistRaids.js';
 import * as raidLog from './src/raidLog.js';
+import * as gwRanking from './src/gwRanking.js';
 import { createWriteQueue } from './src/writeQueue.js';
 
 const { enqueueUpdate } = createWriteQueue(chrome.storage.local);
@@ -54,6 +55,10 @@ chrome.devtools.network.onRequestFinished.addListener(request => {
       const raidId = capture.requestBody?.match(/"raid_id":"?(\d+)/)?.[1];
       const lines = raidLog.parseBattleLog(capture, Date.now() / 1000);
       if (raidId && lines.length) enqueueUpdate('currentRaid', raid => (raid?.raidId === raidId ? raidLog.backfillRaidLog(raid, lines) : raid));
+    }
+    if (/\/teamraid\d+\/ranking\/content\/user/.test(capture.url)) {
+      const ranking = gwRanking.parseGwRanking(capture);
+      if (ranking) enqueueUpdate('gwRanking', stored => gwRanking.appendGwSnapshot(stored, ranking, Date.now()));
     }
     if (capture.url.includes('/friend/friend_list/')) {
       const listed = parseFriendList(capture);

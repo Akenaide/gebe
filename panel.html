@@ -12,6 +12,7 @@
   <button class="filter-btn" data-tab="new-friends-tab">Search new friends</button>
   <button class="filter-btn" data-tab="stats-tab">Stats</button>
   <button class="filter-btn" data-tab="raids-tab">Raids</button>
+  <button class="filter-btn" data-tab="gw-tab">Unite and Fight</button>
 </div>
 
 <div id="duplicates-tab" class="tab">
@@ -38,6 +39,15 @@
     </div>
     <div id="current-raid-section" class="section"></div>
   </div>
+</div>
+<div id="gw-tab" class="tab" hidden>
+  <div class="section-controls">
+    <button id="gw-copy">Copy ranking</button>
+    <textarea id="gw-paste" rows="1" placeholder="Paste a copied ranking here"></textarea>
+    <button id="gw-merge">Merge</button>
+    <span id="gw-status" class="meta"></span>
+  </div>
+  <div id="gw-section" class="section"></div>
 </div>
 
 <script type="module" src="panel.js"></script>

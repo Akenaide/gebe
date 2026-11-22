@@ -39,5 +39,6 @@ Only the pure functions in `src/` have tests. The panel isn't a regular tab, so 
 | `assistRaids` (`{"<tab>/<questId>": {raids, receivedAt}}`, each backup list replaced on its poll; hidden after 5 min) | `devtools.js` | Clear raids |
 | `raidTargetHp` (`{questId: percent}`) | panel | — |
 | `currentRaid` (from `start.json`, then the battle log, the player's action results and the page state; a reload of the same raid keeps its log) | `devtools.js` | the next raid's `start.json` |
+| `gwRanking` (`{eventId: [{at, me: {place, defeated, honors}, cutoffs: {place: {defeated, honors}}}]}`, one snapshot each time the Unite and Fight Totals ranking loads, skipped if unchanged; the panel's "Open ranking" button sets the inspected tab's hash to load it; "Copy ranking" and the paste box's Merge carry it between machines as text, merged by time) | `devtools.js`, panel (Merge) | — |
 
 Item keys are objects keyed by present id / owned-copy id, so a re-fetched page overwrites instead of double-counting. Storage isn't capped in code: the manifest requests `unlimitedStorage`.

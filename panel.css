@@ -231,6 +231,26 @@ body {
   cursor: pointer;
 }
 
+/* Unite and Fight: numbers line up by magnitude; the first column (place or window) stays left. */
+.gw-table {
+  font-variant-numeric: tabular-nums;
+}
+
+.gw-table td:not(:first-child),
+.gw-table th:not(:first-child) {
+  text-align: right;
+  padding-left: 12px;
+}
+
+/* Place change, next to the place: left-aligned so the arrows stay in one column. */
+.gw-table td.gw-move {
+  text-align: left;
+  padding-left: 4px;
+}
+
+.gw-up { color: #3fa556; }
+.gw-down { color: #d9534f; }
+
 .stats-who a {
   margin-right: 12px;
 }

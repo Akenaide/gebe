@@ -4,6 +4,7 @@ import { freshAssistLists, sortByTargetHp } from './src/assistRaids.js';
 import { createWriteQueue } from './src/writeQueue.js';
 import { ELEMENTS } from './src/elements.js';
 import { relativeTime } from './src/relativeTime.js';
+import * as gwRanking from './src/gwRanking.js';
 
 const { enqueueUpdate, enqueueRemove } = createWriteQueue(chrome.storage.local);
 
@@ -30,6 +31,7 @@ let hiddenFriends = {};
 let assistRaids = {};
 let currentRaid = null;
 let raidTargetHp = {};
+let gwSnapshots = {};
 // Lists from quests left behind stop polling; past this age they're hidden.
 const ASSIST_MAX_AGE = 5 * 60_000;
 let showAllFriends = false;
@@ -411,6 +413,52 @@ function renderStatsSection(container) {
   }
 }
 
+function renderGwSection(container) {
+  // The event with the newest snapshot is the one running.
+  const [eventId, snapshots] = Object.entries(gwSnapshots).sort(([, a], [, b]) => b.at(-1).at - a.at(-1).at)[0] ?? [];
+  if (!eventId) {
+    container.innerHTML = '<h3>Unite and Fight</h3><div class="meta">Open the event\'s Totals ranking in a tab with DevTools open; each reload adds a snapshot.</div>';
+    return;
+  }
+  const { at, me, cutoffs } = snapshots.at(-1);
+  const places = Object.keys(cutoffs);
+  const number = value => Math.round(value).toLocaleString();
+  container.innerHTML = `<h3>Unite and Fight</h3><div class="section-controls"><button>Open ranking</button></div><div class="meta">Last snapshot ${new Date(at).toLocaleString()}</div><table class="stats-table gw-table"></table><h3>Honors per hour</h3><table class="stats-table gw-table"></table>`;
+  // Same hash navigation as the game's own links, so the game makes its usual ranking request and devtools.js captures it.
+  container.querySelector('button').addEventListener('click', () => chrome.devtools.inspectedWindow.eval(`location.hash = ${JSON.stringify(`event/${eventId}/ranking`)}`));
+  const [latest, rates] = container.querySelectorAll('table');
+
+  tableHeader(latest, ['Place', 'Honors', 'Your gap']);
+  const latestBody = latest.createTBody();
+  // Your row sits among the cutoffs in place order, so the gaps flip from - to + right where you are.
+  const lines = [{ you: true, place: me.place, honors: me.honors }, ...places.map(place => ({ place: Number(place), honors: cutoffs[place].honors }))];
+  for (const { you, place, honors } of lines.sort((a, b) => a.place - b.place)) {
+    const gap = me.honors - honors;
+    const row = latestBody.insertRow();
+    if (you) row.style.fontWeight = 'bold';
+    for (const value of [`#${number(place)}${you ? ' (you)' : ''}`, number(honors), you ? '' : `${gap >= 0 ? '+' : ''}${number(gap)}`]) row.insertCell().textContent = value;
+  }
+
+  tableHeader(rates, ['Window', 'Your place', '', 'You', ...places.map(place => `#${number(place)}`)]);
+  const ratesBody = rates.createTBody();
+  const time = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const day = ms => new Date(ms).toLocaleDateString([], { weekday: 'short' });
+  let previousDay = null;
+  for (const rate of gwRanking.honorsRates(snapshots)) {
+    // The day only on the first row of each day, so the times stay readable.
+    const dayLabel = day(rate.from) === previousDay ? '' : `${day(rate.from)} `;
+    previousDay = day(rate.from);
+    const span = `${dayLabel}${time(rate.from)}–${time(rate.to)} (${gwRanking.windowLength(rate.to - rate.from)})`;
+    const row = ratesBody.insertRow();
+    for (const value of [span, `#${number(rate.place)}`]) row.insertCell().textContent = value;
+    // Its own left-aligned column, so the arrows line up whatever the place's width.
+    const move = row.insertCell();
+    move.className = rate.placeChange > 0 ? 'gw-move gw-up' : rate.placeChange < 0 ? 'gw-move gw-down' : 'gw-move';
+    if (rate.placeChange) move.textContent = `${rate.placeChange > 0 ? '▴' : '▾'}${number(Math.abs(rate.placeChange))}`;
+    for (const value of [number(rate.me), ...places.map(place => (place in rate.cutoffs ? number(rate.cutoffs[place]) : ''))]) row.insertCell().textContent = value;
+  }
+}
+
 // The game's log types: 1 normal attack, 2 charge attack, 12/13 boss overdrive/break.
 const LOG_TYPE_CLASSES = { 1: 'log-attack', 2: 'log-charge', 12: 'log-boss', 13: 'log-boss' };
 
@@ -573,7 +621,7 @@ function render() {
 }
 
 function loadAndRender() {
-  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'nonFriends', 'watchedSummons', 'summonMinLevels', 'nonFriendFilter', 'nonFriendMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid'], data => {
+  chrome.storage.local.get([...ITEM_KEYS, 'friends', 'friendList', 'nonFriends', 'watchedSummons', 'summonMinLevels', 'nonFriendFilter', 'nonFriendMinLevels', 'hiddenFriends', 'assistRaids', 'raidTargetHp', 'currentRaid', 'gwRanking'], data => {
     friends = data.friends || {};
     friendList = data.friendList || {};
     nonFriends = data.nonFriends || {};
@@ -585,6 +633,7 @@ function loadAndRender() {
     assistRaids = data.assistRaids || {};
     raidTargetHp = data.raidTargetHp || {};
     currentRaid = data.currentRaid || null;
+    gwSnapshots = data.gwRanking || {};
     for (const key of ITEM_KEYS) items[key] = data[key] || {};
     render();
     renderFriendsSection(document.getElementById('friends-section'));
@@ -592,6 +641,7 @@ function loadAndRender() {
     renderStatsSection(document.getElementById('stats-section'));
     renderAssistSection(document.getElementById('assist-section'));
     renderCurrentRaid(document.getElementById('current-raid-section'));
+    renderGwSection(document.getElementById('gw-section'));
   });
 }
 
@@ -616,6 +666,10 @@ chrome.storage.onChanged.addListener(changes => {
     renderCurrentRaid(document.getElementById('current-raid-section'));
   }
   if (changes.assistRaids || changes.raidTargetHp) renderAssistSection(document.getElementById('assist-section'));
+  if (changes.gwRanking) {
+    gwSnapshots = changes.gwRanking.newValue || {};
+    renderGwSection(document.getElementById('gw-section'));
+  }
 });
 
 for (const tabButton of document.querySelectorAll('#tabs button')) {
@@ -637,6 +691,35 @@ document.getElementById('export').addEventListener('click', () => {
     a.click();
     URL.revokeObjectURL(url);
   });
+});
+
+// To carry the Unite and Fight snapshots between machines: copy on one, paste and merge on the other.
+const gwStatus = document.getElementById('gw-status');
+document.getElementById('gw-copy').addEventListener('click', async () => {
+  const text = JSON.stringify(gwSnapshots);
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // DevTools panels often refuse the Clipboard API; copying a selected textarea still works there.
+    const area = document.body.appendChild(document.createElement('textarea'));
+    area.value = text;
+    area.select();
+    document.execCommand('copy');
+    area.remove();
+  }
+  gwStatus.textContent = `Copied ${(text.length / 1024).toFixed(1)} KB.`;
+});
+
+const gwPaste = document.getElementById('gw-paste');
+document.getElementById('gw-merge').addEventListener('click', async () => {
+  const imported = gwRanking.parseGwExport(gwPaste.value);
+  if (!imported) {
+    gwStatus.textContent = 'Not a copied ranking.';
+    return;
+  }
+  await enqueueUpdate('gwRanking', stored => gwRanking.mergeGwRankings(stored, imported));
+  gwPaste.value = '';
+  gwStatus.textContent = 'Merged.';
 });
 
 document.getElementById('clear').addEventListener('click', () => {
